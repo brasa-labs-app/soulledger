@@ -1,0 +1,1450 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#14161b">
+<title>Soul Ledger</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<!-- Solo se habla con la API y su bucket de imágenes. 'unsafe-inline' en script: la app vive en este archivo y Capacitor
+     puede inyectar su puente en línea en WebViews antiguos; el texto de la API igual pasa por esc(). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https://assets-bucket.deadlock-api.com; connect-src 'self' data: https://api.deadlock-api.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+/* Layout: una columna de "libro de cuentas" de la tienda: elegir lobby arriba, orden de compra numerado abajo, build final al cierre */
+:root{
+  --bg:#14161b; --panel:#1c1f26; --line:#2c303a; --fg:#e8e3d6; --muted:#9a9688;
+  --brass:#c9a45c; --brass-ink:#1a1408;
+  --weapon:#e08a3c; --vitality:#6fbf73; --spirit:#a07be0;
+  --good:#7fc98a; --bad:#e07a6a;
+  --display:"Marcellus", "Cormorant Garamond", Georgia, serif;
+  --body:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:calc(env(safe-area-inset-top,0px) + 18px) calc(env(safe-area-inset-bottom,0px) + 40px)}
+[hidden]{display:none!important}
+.wrap{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+header h1{font:400 30px/1.1 var(--display);margin:0;letter-spacing:.02em;text-wrap:balance}
+header p{margin:6px 0 0;color:var(--muted);font-size:14px}
+.eyebrow{font:500 11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--brass)}
+section{display:flex;flex-direction:column;gap:10px}
+h2{font:400 20px/1.2 var(--display);margin:0}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input,select,button{font:inherit;color:inherit}
+input,select{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;min-width:0}
+input{flex:1 1 200px}
+#hero-filter{flex:none}   /* en la columna de la sección, flex-basis sería altura */
+button{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible,.hero:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+button.primary{background:var(--brass);color:var(--brass-ink);border-color:var(--brass);font-weight:600}
+button:disabled{opacity:.5;cursor:default}
+.tabs{display:flex;gap:6px}
+.tabs button{flex:1}
+.tabs button[aria-pressed="true"]{border-color:var(--brass);color:var(--brass)}
+.slots{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.slot{aspect-ratio:1;max-width:100%;border:1px dashed var(--line);border-radius:10px;display:grid;place-items:center;position:relative;overflow:hidden;background:var(--panel);font-size:11px;color:var(--muted);text-align:center;padding:2px}
+.slot.me{border:1px solid var(--brass)}
+.slot img{width:100%;height:100%;object-fit:cover}
+.slot .x{position:absolute;inset:0;background:transparent;border:0;padding:0}
+.legend{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:6px;max-height:300px;overflow-y:auto;padding:2px}
+.hero{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:4px;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;font-size:10.5px;line-height:1.2;text-align:center}
+.hero img{width:44px;height:44px;object-fit:cover;border-radius:6px}
+.hero[data-state="me"]{border-color:var(--brass);background:#2a2416}
+.hero[data-state="enemy"]{border-color:var(--bad);background:#2a1a18}
+.pickmode{font-size:13px;color:var(--muted)}
+.pickmode b{color:var(--fg)}
+.note{font-size:13px;color:var(--muted);border-left:2px solid var(--line);padding-left:10px;margin:0}
+.status{font-size:14px;padding:10px 12px;border-radius:8px;background:var(--panel);border:1px solid var(--line)}
+.status.err{border-color:var(--bad)}
+.status.ok{border-color:var(--good)}
+
+/* Ícono de item: arte de la tienda con marco del color de su categoría, como en el juego */
+.icon{width:40px;height:40px;border-radius:6px;border:2px solid var(--line);object-fit:cover;background:var(--panel);flex:none}
+.icon[data-slot="weapon"]{border-color:var(--weapon)}
+.icon[data-slot="vitality"]{border-color:var(--vitality)}
+.icon[data-slot="spirit"]{border-color:var(--spirit)}
+.icon.sm{width:30px;height:30px}
+
+.item{display:grid;grid-template-columns:40px 1fr auto;gap:10px;align-items:center;padding:8px;border-radius:10px;background:var(--panel)}
+.item .name{font-weight:600;min-width:0}
+.item .meta{font-size:12px;color:var(--muted)}
+.item .nums{text-align:right;font:500 13px var(--mono);font-variant-numeric:tabular-nums}
+.pill{display:inline-block;font:500 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;border-radius:99px;padding:2px 7px;margin-left:6px;vertical-align:1px}
+.pill.counter{background:#1f3324;color:var(--good)}
+.up{color:var(--good)} .down{color:var(--bad)}
+.list{display:flex;flex-direction:column;gap:6px}
+
+/* Orden de compra */
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.step{display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+.step .nt{display:flex;flex-direction:column;align-items:flex-end;line-height:1.25}
+.step .n{font:500 14px var(--mono);color:var(--brass)}
+.step .t{font:500 11.5px var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.step .icons{display:flex;align-items:center;gap:4px;flex:none}
+.step .what{display:flex;align-items:center;gap:10px;min-width:0}
+.step .txt{min-width:0;font-size:14px;line-height:1.3}
+.step .txt b{font-weight:600}
+.step .txt small{display:block;color:var(--muted);font-size:12px}
+.step .cost{text-align:right;font:500 13px var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.step .cost small{display:block;color:var(--muted);font-size:11px}
+.step[data-kind="upgrade"] .icon.sm:not(:last-child){width:24px;height:24px}
+.step[data-kind="upgrade"] .verb{color:var(--brass)}
+.step[data-kind="sell"] .verb{color:var(--bad)}
+.step[data-kind="sell"] .icon{opacity:.55}
+.arrow{color:var(--muted);font-size:13px}
+.phase{font:500 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);padding:14px 0 4px;border-bottom:1px solid var(--line)}
+
+.final{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.final figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;line-height:1.2;text-align:center;min-width:0}
+.final .icon{width:100%;height:auto;aspect-ratio:1;max-width:72px}
+/* Foto de la partida */
+.file-btn{position:relative;display:inline-flex;align-items:center;justify-content:center;background:var(--brass);color:var(--brass-ink);border-radius:8px;padding:10px 14px;font-weight:600;cursor:pointer}
+.file-btn input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.file-btn:focus-within{outline:2px solid var(--brass);outline-offset:2px}
+.photo-wrap{border-radius:10px;overflow:hidden;border:1px solid var(--line);background:#000}
+.photo-wrap canvas{display:block;width:100%;height:auto;touch-action:none;cursor:crosshair}
+.scan-res{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+.scan-cell{display:flex;flex-direction:column;align-items:center;gap:3px;border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:5px 3px;font-size:10.5px;line-height:1.2;text-align:center;cursor:pointer;min-width:0}
+.scan-cell canvas{width:100%;max-width:48px;aspect-ratio:3/5;height:auto;border-radius:4px;background:#000}
+.scan-cell img{width:34px;height:34px;border-radius:6px;object-fit:cover}
+.scan-cell[data-low="1"]{border-color:var(--bad)}
+.scan-cell .chk{font:500 10px var(--mono);color:var(--bad)}
+
+/* Checklist de compras */
+.step{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.step:focus-visible{outline:2px solid var(--brass);outline-offset:-2px}
+.step.done{opacity:.4}
+.step.done .txt b{text-decoration:line-through}
+.step.done .n{color:var(--good)}
+.step.next{background:linear-gradient(90deg,rgba(201,164,92,.16),transparent 75%);box-shadow:inset 3px 0 0 var(--brass)}
+.tracker{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--panel);border-top:1px solid var(--brass);
+  padding-top:10px;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.tracker .in{max-width:720px;margin:0 auto;display:flex;align-items:center;gap:10px}
+.tracker .txt{flex:1;min-width:0;font-size:14px;line-height:1.3}
+.tracker .txt small{display:block;color:var(--muted);font:500 11.5px var(--mono)}
+.tracker .ic{display:flex;align-items:center;gap:4px;flex:none}
+.tracker button.primary{padding:13px 16px}
+body.tracking{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 140px)}
+.tracker .clock{display:flex;justify-content:space-between;gap:8px;width:100%;max-width:720px;margin:0 auto 8px;padding:6px 10px;
+  font:500 12px/1.2 var(--mono);color:var(--muted);background:transparent;border:1px dashed var(--line);border-radius:8px}
+.tracker .clock.on{border-style:solid;color:var(--fg)}
+.tracker .clock.due{color:var(--brass-ink);background:var(--brass);border-color:var(--brass);animation:due 1s ease-in-out 4}
+@keyframes due{50%{opacity:.55}}
+dialog{background:var(--panel);color:var(--fg);border:1px solid var(--brass);border-radius:14px;padding:18px;width:min(92vw,420px)}
+dialog::backdrop{background:rgba(0,0,0,.65)}
+dialog h3{font:400 21px var(--display);margin:0 0 6px}
+.clock-val{display:block;text-align:center;font:500 46px/1.1 var(--mono);margin:12px 0}
+.clock-adj{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-bottom:14px}
+.clock-adj button{padding:12px 4px;font:500 13px var(--mono)}
+.clock-act{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.clock-act #clock-stop{margin-right:auto}
+.support{font-size:13px;color:var(--muted);margin-bottom:8px;display:flex;gap:10px;align-items:center;
+  border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--panel)}
+.support svg{width:26px;height:26px;flex:none;color:var(--brass)}
+.top-r{display:flex;gap:4px;align-items:center}
+.kofi-btn{display:grid;place-items:center;width:36px;height:29px;border:1px solid var(--line);border-radius:8px;color:var(--brass);background:var(--panel)}
+.kofi-btn svg{width:18px;height:18px}
+.kofi-cta{display:inline-flex;align-items:center;gap:6px;padding:12px 16px;border-radius:8px;background:var(--brass);color:var(--brass-ink);font-weight:600;text-decoration:none;flex:none}
+.kofi-cta svg{width:20px;height:20px}
+.kofi-btn:focus-visible,.kofi-cta:focus-visible,.support a:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+/* Pestañas principales y meta de héroes */
+.views button{font:400 18px/1 var(--display);padding:13px 10px;letter-spacing:.02em}
+.chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chips button{padding:7px 12px;font:500 12px/1 var(--mono);border-radius:99px}
+.chips button[aria-pressed="true"]{border-color:var(--brass);color:var(--brass)}
+#meta-filter{flex:none}
+.meta-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.mh-row{width:100%;display:grid;grid-template-columns:20px 36px minmax(0,1fr) 30px 64px 48px;gap:8px;align-items:center;text-align:left;padding:7px 10px}
+.mh-row img{width:36px;height:36px;border-radius:6px;object-fit:cover;background:var(--bg)}
+.mh-row .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mh-row small{display:block;color:var(--muted);font:500 11px/1.3 var(--mono);overflow:hidden;text-overflow:ellipsis}
+.mh-row .num{font:500 13px/1.25 var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+.mh-row .rk{font:500 11px var(--mono);color:var(--muted);text-align:right}
+.tier{font:400 16px/1.5 var(--display);text-align:center;border-radius:6px;border:1px solid var(--line)}
+.tier.S{color:var(--brass-ink);background:var(--brass);border-color:var(--brass)}
+.tier.A{color:var(--good);border-color:var(--good)}
+.tier.C{color:var(--muted)}
+.tier.D{color:var(--bad);border-color:var(--bad)}
+.mh.open .mh-row{border-color:var(--brass);border-radius:8px 8px 0 0}
+.mh-detail{padding:12px 10px;border:1px solid var(--brass);border-top:0;border-radius:0 0 8px 8px;display:flex;flex-direction:column;gap:12px;background:var(--panel)}
+.mh-detail .eyebrow{margin-bottom:6px}
+.mu{display:flex;gap:6px;flex-wrap:wrap}
+.mu span{display:inline-flex;align-items:center;gap:6px;font:500 12px var(--mono);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:3px 8px 3px 3px}
+.mu img{width:26px;height:26px;border-radius:5px;object-fit:cover}
+.mu img.icon{width:26px;height:26px;border-width:1.5px}
+.support a{color:var(--brass)}
+header .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.lang{display:flex;gap:4px}
+.lang button{padding:7px 10px;font:500 11px/1 var(--mono);letter-spacing:.1em}
+.lang button[aria-pressed="true"]{border-color:var(--brass);color:var(--brass)}
+footer,.legal{font-size:12px;color:var(--muted)}
+.legal{margin:-12px 0 0}
+.legal a{color:var(--brass)}
+/* versión de Google Play: sin enlaces de donación (sync-web --store=play marca <html data-store="play">) */
+html[data-store="play"] .kofi{display:none!important}
+footer a{color:var(--brass)}
+@media (max-width:420px){.scan-res{grid-template-columns:repeat(3,minmax(0,1fr))}.slots{grid-template-columns:repeat(4,1fr)}.final{grid-template-columns:repeat(4,1fr)}.step{gap:8px}.step .what{gap:8px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-cup" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 9h12v4.5A5.5 5.5 0 0 1 10.5 19h-1A5.5 5.5 0 0 1 4 13.5Z"/><path d="M16 11h1.5a2.5 2.5 0 0 1 0 5H16"/>
+    <path d="M8 3.5c-.7.9-.7 1.9 0 2.8M12 3.5c-.7.9-.7 1.9 0 2.8"/><path d="M3 21.5h14"/>
+  </symbol>
+</svg>
+<div class="wrap">
+  <header>
+    <div class="top">
+      <div class="eyebrow" data-i18n="eyebrow">Herramienta de fans para Deadlock</div>
+      <div class="top-r">
+      <a class="kofi-btn kofi" href="https://ko-fi.com/soulledgerapp" target="_blank" rel="noopener" data-i18n-aria="kofi.aria" data-i18n-title="kofi.aria" aria-label="Apoyar Soul Ledger en Ko-fi" title="Apoyar Soul Ledger en Ko-fi"><svg aria-hidden="true"><use href="#i-cup"/></svg></a>
+      <div class="lang" role="group" data-i18n-aria="lang.aria" aria-label="Idioma">
+        <button type="button" data-lang="es" aria-pressed="true">ES</button>
+        <button type="button" data-lang="pt" aria-pressed="false">PT</button>
+      </div>
+      </div>
+    </div>
+    <h1>Soul Ledger</h1>
+    <p data-i18n="intro">Arma tu lobby (a mano o con una foto de la pantalla) y sigue el orden de compra exacto, componente por componente, marcando lo que ya compraste.</p>
+  </header>
+
+  <div id="status" class="status" hidden role="status"></div>
+  <div class="tabs views" role="group" data-i18n-aria="view.aria" aria-label="Sección">
+    <button type="button" id="view-meta" aria-pressed="true" data-i18n="view.meta">Meta</button>
+    <button type="button" id="view-build" aria-pressed="false" data-i18n="view.build">Build</button>
+  </div>
+  <div class="row">
+    <label for="rank" class="pickmode" data-i18n="rank.label">Rango de las partidas</label>
+    <select id="rank">
+      <option value="" data-i18n="rank.all">Todos</option>
+      <option data-i18n="rank.70" value="70">Archon o más</option>
+      <option data-i18n="rank.80" value="80">Oracle o más</option>
+      <option data-i18n="rank.90" value="90" selected>Phantom o más</option>
+      <option data-i18n="rank.100" value="100">Ascendant o más</option>
+    </select>
+    <select id="days" data-i18n-aria="days.aria" aria-label="Período">
+      <option value="14" data-i18n="days.14">Últimos 14 días</option>
+      <option value="30" selected data-i18n="days.30">Últimos 30 días</option>
+    </select>
+  </div>
+
+  <section id="v-meta" aria-labelledby="h-meta">
+    <h2 id="h-meta" data-i18n="meta.title">Meta de héroes</h2>
+    <p class="note" id="meta-sub" data-i18n="meta.loading">Consultando el meta…</p>
+    <div class="chips" role="group" id="meta-sort" data-i18n-aria="meta.sortAria" aria-label="Ordenar por">
+      <button type="button" data-sort="tier" aria-pressed="true">Tier</button>
+      <button type="button" data-sort="wr" aria-pressed="false">Win rate</button>
+      <button type="button" data-sort="pick" aria-pressed="false">Pick</button>
+      <button type="button" data-sort="kda" aria-pressed="false">KDA</button>
+    </div>
+    <input id="meta-filter" data-i18n-ph="meta.filter" placeholder="Buscar héroe…" autocomplete="off" enterkeyhint="done">
+    <ol class="meta-list" id="meta-list"></ol>
+    <p class="note" data-i18n="meta.note">Tier según el win rate, con un pequeño peso por popularidad. ▲▼ = cambio de win rate contra el período anterior del mismo largo.</p>
+  </section>
+
+  <div id="v-build" class="wrap" style="gap:22px" hidden>
+  <section aria-labelledby="h-lobby">
+    <h2 id="h-lobby">Lobby</h2>
+    <div class="tabs" role="group" data-i18n-aria="tabs.aria" aria-label="Cómo cargar el lobby">
+      <button id="tab-manual" aria-pressed="true">Manual</button>
+      <button id="tab-photo" aria-pressed="false">Foto</button>
+      <button id="tab-steam" aria-pressed="false">Steam ID</button>
+    </div>
+
+    <div id="panel-photo" hidden class="list">
+      <div class="row">
+        <label class="file-btn"><span data-i18n="photo.take">Tomar foto</span><input id="photo-input" type="file" accept="image/*" capture="environment"></label>
+        <span class="pickmode" id="photo-hint" data-i18n="photo.hint">Apunta a la barra superior del juego, donde están los retratos de los héroes.</span>
+      </div>
+      <div class="photo-wrap" id="photo-wrap" hidden><canvas id="photo-canvas" data-i18n-aria="photo.canvas" aria-label="Foto: arrastra para encuadrar los retratos"></canvas></div>
+      <div class="row" id="photo-tools" hidden>
+        <p class="note" id="photo-help" style="flex:1 1 220px"></p>
+        <button id="btn-photo-full" data-i18n="photo.full">Ver foto completa</button>
+      </div>
+      <div class="scan-res" id="scan-res"></div>
+      <div class="row" id="scan-actions" hidden>
+        <button id="btn-use-scan" class="primary" data-i18n="scan.use">Usar como enemigos</button>
+        <span class="pickmode" data-i18n="scan.tapHint">Si uno salió mal, tócalo para ver la siguiente opción.</span>
+      </div>
+    </div>
+
+    <div id="panel-steam" hidden>
+      <div class="row">
+        <input id="steam-id" inputmode="text" autocomplete="off" data-i18n-ph="steam.ph" placeholder="SteamID64, [U:1:…] o account ID">
+        <button id="btn-live" class="primary" data-i18n="steam.live">Buscar en vivo</button>
+        <button id="btn-last" data-i18n="steam.lastBtn">Mi último héroe</button>
+      </div>
+      <p class="note" data-i18n="steam.note">En vivo solo funciona si tu partida está entre las ~200 que aparecen en la pestaña Watch (sobre todo rangos altos), con 1–2 minutos de retraso. Si no aparece, eliges los enemigos a mano.</p>
+    </div>
+
+    <div class="legend"><span data-i18n="legend.me">Tú</span><span data-i18n="legend.enemies">Enemigos (hasta 6)</span></div>
+    <div class="slots" id="slots"></div>
+    <p class="pickmode" id="pickmode"></p>
+    <input id="hero-filter" data-i18n-ph="filter.ph" placeholder="Buscar héroe (español o inglés)…" autocomplete="off" enterkeyhint="done">
+    <div class="grid" id="hero-grid" data-i18n-aria="grid.aria" aria-label="Héroes"><p class="pickmode" data-i18n="grid.loading">Cargando héroes…</p></div>
+
+    <button id="btn-go" class="primary" disabled data-i18n="go">Sugerir build</button>
+  </section>
+
+
+  <section id="result" hidden aria-labelledby="h-res">
+    <h2 id="h-res" data-i18n="res.title">Build sugerida</h2>
+    <p class="note" id="res-sub"></p>
+
+    <div id="counters-wrap" hidden class="list">
+      <div class="eyebrow" data-i18n="counters.title">Mejores counters para esta comp</div>
+      <div class="list" id="counters"></div>
+    </div>
+
+    <div class="row" style="justify-content:space-between">
+      <div class="eyebrow" data-i18n="order.title">Orden de compra · toca un paso para marcarlo</div>
+      <button id="btn-reset-progress" data-i18n="reset">Empezar de cero</button>
+    </div>
+    <ol class="steps" id="steps"></ol>
+
+    <div class="eyebrow">Build final</div>
+    <div class="final" id="final"></div>
+
+    <details>
+      <summary class="pickmode" data-i18n="why.summary">Por qué estos items (win rate y diferencia)</summary>
+      <div class="list" id="why" style="margin-top:8px"></div>
+    </details>
+  </section>
+  </div>
+
+  <p class="support kofi"><svg aria-hidden="true"><use href="#i-cup"/></svg><span data-i18n-html="support">Soul Ledger es gratis y sin anuncios. Si te ayuda a ganar, <a href="https://ko-fi.com/soulledgerapp" target="_blank" rel="noopener">invítame un café en Ko-fi</a>.</span></p>
+  <footer data-i18n-html="footer">Datos: <a href="https://deadlock-api.com" target="_blank" rel="noopener">deadlock-api.com</a> (comunitaria, no oficial de Valve). Los tiempos son el minuto promedio en que se compra cada item en esas partidas. WR = win rate de quienes compraron el item; Δ = diferencia contra el mismo item en todas las partidas del héroe.</footer>
+  <p class="legal"><span data-i18n="legal">Soul Ledger es un proyecto de fans, sin relación con Valve Corporation ni respaldado por ella. Deadlock y su arte son marcas y propiedad de Valve.</span> <a href="privacy.html" data-i18n="privacy">Política de privacidad</a></p>
+</div>
+
+<div class="tracker" id="tracker" hidden>
+  <button type="button" class="clock" id="tr-clock" data-i18n-aria="clock.aria" aria-label="Reloj de partida"></button>
+  <div class="in">
+    <div class="ic" id="tr-icon"></div>
+    <div class="txt" id="tr-txt" aria-live="polite"></div>
+    <button id="tr-undo" data-i18n="tr.undo">Deshacer</button>
+    <button id="tr-done" class="primary">Comprado</button>
+    <a id="tr-kofi" class="kofi-cta kofi" href="https://ko-fi.com/soulledgerapp" target="_blank" rel="noopener" hidden><svg aria-hidden="true"><use href="#i-cup"/></svg>Ko-fi</a>
+  </div>
+</div>
+
+<dialog id="clock-dlg" aria-labelledby="clock-h">
+  <h3 id="clock-h" data-i18n="clock.title">¿En qué minuto va la partida?</h3>
+  <p class="note" data-i18n="clock.help">Mira el reloj arriba al centro del juego. Te aviso con una vibración 15 s antes de cada compra.</p>
+  <output id="clock-val" class="clock-val">0:00</output>
+  <div class="clock-adj">
+    <button type="button" data-d="-60">−1 min</button><button type="button" data-d="-10">−10 s</button>
+    <button type="button" data-d="10">+10 s</button><button type="button" data-d="60">+1 min</button>
+  </div>
+  <div class="clock-act">
+    <button type="button" id="clock-stop" data-i18n="clock.stop">Detener reloj</button>
+    <button type="button" id="clock-cancel" data-i18n="clock.cancel">Cancelar</button>
+    <button type="button" id="clock-ok" class="primary" data-i18n="clock.go">Empezar</button>
+  </div>
+</dialog>
+
+<script src="recognize.js"></script>
+
+<script>
+const API = "https://api.deadlock-api.com/v1";
+const STEAM64_BASE = 76561197960265728n;
+const TIER_COST = {1:800, 2:1600, 3:3200, 4:6400};
+const MIN_N = 20;          // mínimo de partidas para considerar un item
+const PRIOR_K = 40;        // suavizado bayesiano hacia el WR base del héroe
+const MIN_PICK = 0.02;     // un item debe aparecer en al menos 2% de las partidas del héroe
+const BASE_SLOTS = 9, MAX_SLOTS = 12;
+const FINAL_CAPS = {4:4, 3:6, 2:4, 1:1};   // máximo por tier en los 12 slots finales
+const CACHE_V = "v6";
+const RUN_KEY = "dl_run_v1";
+const RUN_MAX_AGE_H = 6;
+const LOW_CONF = 0.06;     // bajo este margen el reconocimiento pide revisión
+
+// APK de Android (Capacitor): plugins nativos para cámara, pantalla encendida y botón atrás
+// versión publicada en Google Play: sin enlaces de donación externos (política de pagos de Play)
+const PLAY = document.documentElement.dataset.store === "play";
+const NATIVE = !!window.Capacitor?.isNativePlatform?.();
+const Plug = NATIVE ? (window.Capacitor.Plugins || {}) : {};
+
+const $ = id => document.getElementById(id);
+
+/* ---------- Idioma: español (busca también en inglés) o portugués de Brasil ----------
+   Los nombres de héroes e items se muestran en inglés, como en el juego. Los textos con <b> o <a>
+   se insertan como HTML: son fijos de este diccionario; lo que viene de la API se escapa antes. */
+const I18N = {
+  es: {
+    "lang.aria":"Idioma", "intro":"Arma tu lobby (a mano o con una foto de la pantalla) y sigue el orden de compra exacto, componente por componente, marcando lo que ya compraste.",
+    "tabs.aria":"Cómo cargar el lobby",
+    "photo.take":"Tomar foto", "photo.hint":"Apunta a la barra superior del juego, donde están los retratos de los héroes.",
+    "photo.canvas":"Foto: arrastra para encuadrar los retratos", "photo.full":"Ver foto completa",
+    "scan.use":"Usar como enemigos", "scan.tapHint":"Si uno salió mal, tócalo para ver la siguiente opción.",
+    "steam.ph":"SteamID64, [U:1:…] o account ID", "steam.live":"Buscar en vivo", "steam.lastBtn":"Mi último héroe",
+    "steam.note":"En vivo solo funciona si tu partida está entre las ~200 que aparecen en la pestaña Watch (sobre todo rangos altos), con 1–2 minutos de retraso. Si no aparece, eliges los enemigos a mano.",
+    "legend.me":"Tú", "legend.enemies":"Enemigos (hasta 6)", "filter.ph":"Buscar héroe (español o inglés)…",
+    "grid.aria":"Héroes", "grid.loading":"Cargando héroes…",
+    "rank.label":"Rango de las partidas", "rank.all":"Todos", "rank.70":"Archon o más", "rank.80":"Oracle o más", "rank.90":"Phantom o más", "rank.100":"Ascendant o más",
+    "days.aria":"Período", "days.14":"Últimos 14 días", "days.30":"Últimos 30 días", "go":"Sugerir build",
+    "res.title":"Build sugerida", "counters.title":"Mejores counters para esta comp", "order.title":"Orden de compra · toca un paso para marcarlo",
+    "reset":"Empezar de cero", "why.summary":"Por qué estos items (win rate y diferencia)",
+    "footer":'Datos: <a href="https://deadlock-api.com" target="_blank" rel="noopener">deadlock-api.com</a> (comunitaria, no oficial de Valve). Los tiempos son el minuto promedio en que se compra cada item en esas partidas. WR = win rate de quienes compraron el item; Δ = diferencia contra el mismo item en todas las partidas del héroe.',
+    "tr.undo":"Deshacer", "tr.bought":"Comprado", "tr.sold":"Vendido", "tr.upgraded":"Mejorado",
+    "eyebrow":"Herramienta de fans para Deadlock", "legal":"Soul Ledger es un proyecto de fans, sin relación con Valve Corporation ni respaldado por ella. Deadlock y su arte son marcas y propiedad de Valve.", "privacy":"Política de privacidad",
+    "tr.complete":"Build completa", "tr.marked":"{n} pasos marcados", "tr.kofi":"¿Te sirvió? Invítame un café", "kofi.aria":"Apoyar Soul Ledger en Ko-fi", "tr.step":"Paso {i} de {n} · {price} almas · ~{time}",
+    "view.aria":"Sección", "view.meta":"Meta", "view.build":"Build",
+    "meta.title":"Meta de héroes", "meta.loading":"Consultando el meta…", "meta.sortAria":"Ordenar por", "meta.filter":"Buscar héroe…",
+    "meta.sub":"{n} partidas · {rank} · {days} · actualizado a las {time}", "meta.fail":"No pude cargar el meta: {msg}",
+    "meta.matches":"{n} partidas", "meta.new":"nuevo", "meta.few":"pocas partidas",
+    "meta.beats":"Le gana a", "meta.struggles":"Le cuesta contra", "meta.allies":"Mejor con", "meta.items":"Items con más win rate",
+    "meta.itemsLoading":"Cargando items…", "meta.noData":"Sin datos suficientes.", "meta.best":"Build de mayor win rate", "meta.use":"Usar en mi lobby",
+    "meta.note":"Tier según el win rate, con un pequeño peso por popularidad. ▲▼ = cambio de win rate contra el período anterior del mismo largo.",
+    "clock.start":"▶ Iniciar reloj de partida", "clock.aria":"Reloj de partida", "clock.in":"siguiente en {time}", "clock.late":"ya toca (+{time})",
+    "clock.title":"¿En qué minuto va la partida?", "clock.help":"Mira el reloj arriba al centro del juego. Te aviso con una vibración 15 s antes de cada compra.",
+    "clock.go":"Empezar", "clock.save":"Listo", "clock.stop":"Detener reloj", "clock.cancel":"Cancelar", "notif.channel":"Partida en curso",
+    "support":'Soul Ledger es gratis y sin anuncios. Si te ayuda a ganar, <a href="https://ko-fi.com/soulledgerapp" target="_blank" rel="noopener">invítame un café en Ko-fi</a>.',
+    "err.offline":"Sin conexión a internet (o la API no responde).", "err.429":"La API está limitando las consultas. Espera unos segundos y vuelve a intentar.", "err.http":"La API respondió {s}.",
+    "slot.remove":"Quitar {name}", "slot.me":"Tú",
+    "pick.me":"Toca un héroe para elegir <b>tu héroe</b>.", "pick.enemies":"Ahora toca a los <b>enemigos</b>. Toca de nuevo para quitar.", "pick.full":"Lobby completo.",
+    "photo.helpResults":"Revisa los 6 resultados. Si el recuadro quedó corrido, vuelve a arrastrar.",
+    "photo.helpZoom":"Ahora ajusta el recuadro <b>justo</b> de borde a borde de los 6 retratos enemigos.",
+    "photo.helpStart":"Arrastra el dedo sobre los <b>6 retratos enemigos</b> de la barra superior (sin el reloj del centro).",
+    "photo.openFail":"No pude abrir esa foto. Prueba con otra o toma una nueva.",
+    "scan.running":"Reconociendo héroes…", "scan.low1":"Listo. Revisa el retrato marcado en rojo antes de usarlos.",
+    "scan.lowN":"Listo. Revisa los {n} retratos marcados en rojo antes de usarlos.", "scan.ok":"Listo. Revisa que coincidan y toca «Usar como enemigos».",
+    "scan.fail":"No pude reconocer la foto: {msg}", "scan.check":"revisa", "scan.cell":"Retrato {i}: {name}. Toca para cambiar.", "scan.unknown":"desconocido",
+    "scan.loaded":"Enemigos cargados desde la foto: {names}.", "scan.pickMe":" Ahora elige tu héroe.",
+    "steam.invalid":"Ese Steam ID no es válido. Usa el número de 17 dígitos (SteamID64), el formato [U:1:…] o tu account ID.",
+    "steam.invalidShort":"Ese Steam ID no es válido.", "steam.searching":"Buscando tu partida en vivo…",
+    "steam.notFound":"Tu partida no está entre las que se pueden espectear ahora. Usa la foto o elige los enemigos a mano.",
+    "steam.found":"Partida encontrada: {hero} contra {n} enemigos.", "steam.yourHero":"tu héroe", "steam.checkConn":"{msg} Revisa tu conexión.",
+    "steam.reading":"Leyendo tu historial…", "steam.noMatches":"No hay partidas registradas para esa cuenta todavía.",
+    "steam.unknownHero":"Tu última partida fue con un héroe que no está en la lista actual. Elígelo a mano.",
+    "steam.last":"Tu última partida (hace {m} min) fue con {hero}. Ahora elige a los enemigos.",
+    "rec.loading":"Consultando partidas reales… (puede tardar 5–15 s)", "rec.few":"No hay suficientes partidas con esos filtros. Prueba con 'Todos' los rangos o 30 días.",
+    "sub.vs":"{hero} contra {enemies}. ", "sub.general":"{hero}: build de mayor win rate del héroe, sin enemigos elegidos. ",
+    "sub.based":"Basado en {n} partidas del héroe. Los minutos son el promedio de compra en esas partidas.",
+    "item.meta":"{slot} · T{tier} · compra ~{time} · {n} partidas",
+    "phase.lane":"Fase de líneas · 0–10 min", "phase.mid":"Mid game · 10–20 min", "phase.late":"Late game · 20–30 min", "phase.end":"Cierre · 30+ min",
+    "verb.upgrade":"Mejorar", "verb.sell":"Vender", "verb.buy":"Comprar",
+    "step.upgradeSub":"T{tier} · descuento de {n} por el componente", "step.sellSub":"libera un slot · recuperas la mitad",
+    "step.comp":"componente de una mejora próxima", "step.extra":"slot extra (se abre al destruir un Walker)", "step.active":" · activo",
+    "cam.header":"Foto de la partida", "cam.gallery":"Elegir de la galería", "cam.take":"Tomar foto", "cam.cancel":"Cancelar", "cam.fail":"No pude abrir la cámara: {msg}",
+    "boot.fail":"No pude cargar los héroes: {msg} Revisa tu conexión; reintento solo cuando vuelva.",
+  },
+  pt: {
+    "lang.aria":"Idioma", "intro":"Monte seu lobby (à mão ou com uma foto da tela) e siga a ordem de compra exata, componente por componente, marcando o que você já comprou.",
+    "tabs.aria":"Como carregar o lobby",
+    "photo.take":"Tirar foto", "photo.hint":"Aponte para a barra superior do jogo, onde ficam os retratos dos heróis.",
+    "photo.canvas":"Foto: arraste para enquadrar os retratos", "photo.full":"Ver foto inteira",
+    "scan.use":"Usar como inimigos", "scan.tapHint":"Se algum saiu errado, toque nele para ver a próxima opção.",
+    "steam.ph":"SteamID64, [U:1:…] ou account ID", "steam.live":"Buscar ao vivo", "steam.lastBtn":"Meu último herói",
+    "steam.note":"Ao vivo só funciona se sua partida estiver entre as ~200 que aparecem na aba Watch (principalmente ranks altos), com 1–2 minutos de atraso. Se não aparecer, escolha os inimigos à mão.",
+    "legend.me":"Você", "legend.enemies":"Inimigos (até 6)", "filter.ph":"Buscar herói (português ou inglês)…",
+    "grid.aria":"Heróis", "grid.loading":"Carregando heróis…",
+    "rank.label":"Rank das partidas", "rank.all":"Todos", "rank.70":"Archon ou acima", "rank.80":"Oracle ou acima", "rank.90":"Phantom ou acima", "rank.100":"Ascendant ou acima",
+    "days.aria":"Período", "days.14":"Últimos 14 dias", "days.30":"Últimos 30 dias", "go":"Sugerir build",
+    "res.title":"Build sugerida", "counters.title":"Melhores counters para esta comp", "order.title":"Ordem de compra · toque em um passo para marcá-lo",
+    "reset":"Começar do zero", "why.summary":"Por que estes itens (win rate e diferença)",
+    "footer":'Dados: <a href="https://deadlock-api.com" target="_blank" rel="noopener">deadlock-api.com</a> (comunitária, não oficial da Valve). Os tempos são o minuto médio em que cada item é comprado nessas partidas. WR = win rate de quem comprou o item; Δ = diferença em relação ao mesmo item em todas as partidas do herói.',
+    "tr.undo":"Desfazer", "tr.bought":"Comprado", "tr.sold":"Vendido", "tr.upgraded":"Melhorado",
+    "eyebrow":"Ferramenta de fãs para Deadlock", "legal":"O Soul Ledger é um projeto de fãs, sem relação com a Valve Corporation nem endossado por ela. Deadlock e sua arte são marcas e propriedade da Valve.", "privacy":"Política de privacidade",
+    "tr.complete":"Build completa", "tr.marked":"{n} passos marcados", "tr.kofi":"Curtiu? Me pague um café", "kofi.aria":"Apoiar o Soul Ledger no Ko-fi", "tr.step":"Passo {i} de {n} · {price} almas · ~{time}",
+    "view.aria":"Seção", "view.meta":"Meta", "view.build":"Build",
+    "meta.title":"Meta de heróis", "meta.loading":"Consultando o meta…", "meta.sortAria":"Ordenar por", "meta.filter":"Buscar herói…",
+    "meta.sub":"{n} partidas · {rank} · {days} · atualizado às {time}", "meta.fail":"Não consegui carregar o meta: {msg}",
+    "meta.matches":"{n} partidas", "meta.new":"novo", "meta.few":"poucas partidas",
+    "meta.beats":"Vence", "meta.struggles":"Sofre contra", "meta.allies":"Melhor com", "meta.items":"Itens com mais win rate",
+    "meta.itemsLoading":"Carregando itens…", "meta.noData":"Dados insuficientes.", "meta.best":"Build com maior win rate", "meta.use":"Usar no meu lobby",
+    "meta.note":"Tier pelo win rate, com um pequeno peso pela popularidade. ▲▼ = mudança de win rate em relação ao período anterior de mesma duração.",
+    "clock.start":"▶ Iniciar relógio da partida", "clock.aria":"Relógio da partida", "clock.in":"próxima em {time}", "clock.late":"já é hora (+{time})",
+    "clock.title":"Em que minuto está a partida?", "clock.help":"Olhe o relógio no topo do jogo. Eu aviso com uma vibração 15 s antes de cada compra.",
+    "clock.go":"Começar", "clock.save":"Pronto", "clock.stop":"Parar relógio", "clock.cancel":"Cancelar", "notif.channel":"Partida em andamento",
+    "support":'O Soul Ledger é grátis e sem anúncios. Se ele te ajuda a ganhar, <a href="https://ko-fi.com/soulledgerapp" target="_blank" rel="noopener">me pague um café no Ko-fi</a>.',
+    "err.offline":"Sem conexão com a internet (ou a API não responde).", "err.429":"A API está limitando as consultas. Espere alguns segundos e tente de novo.", "err.http":"A API respondeu {s}.",
+    "slot.remove":"Remover {name}", "slot.me":"Você",
+    "pick.me":"Toque em um herói para escolher <b>o seu herói</b>.", "pick.enemies":"Agora toque nos <b>inimigos</b>. Toque de novo para remover.", "pick.full":"Lobby completo.",
+    "photo.helpResults":"Confira os 6 resultados. Se o retângulo ficou deslocado, arraste de novo.",
+    "photo.helpZoom":"Agora ajuste o retângulo <b>exatamente</b> de ponta a ponta dos 6 retratos inimigos.",
+    "photo.helpStart":"Arraste o dedo sobre os <b>6 retratos inimigos</b> da barra superior (sem o relógio do centro).",
+    "photo.openFail":"Não consegui abrir essa foto. Tente outra ou tire uma nova.",
+    "scan.running":"Reconhecendo heróis…", "scan.low1":"Pronto. Confira o retrato marcado em vermelho antes de usá-los.",
+    "scan.lowN":"Pronto. Confira os {n} retratos marcados em vermelho antes de usá-los.", "scan.ok":"Pronto. Confira se batem e toque em «Usar como inimigos».",
+    "scan.fail":"Não consegui reconhecer a foto: {msg}", "scan.check":"confira", "scan.cell":"Retrato {i}: {name}. Toque para trocar.", "scan.unknown":"desconhecido",
+    "scan.loaded":"Inimigos carregados da foto: {names}.", "scan.pickMe":" Agora escolha o seu herói.",
+    "steam.invalid":"Esse Steam ID não é válido. Use o número de 17 dígitos (SteamID64), o formato [U:1:…] ou seu account ID.",
+    "steam.invalidShort":"Esse Steam ID não é válido.", "steam.searching":"Procurando sua partida ao vivo…",
+    "steam.notFound":"Sua partida não está entre as que podem ser assistidas agora. Use a foto ou escolha os inimigos à mão.",
+    "steam.found":"Partida encontrada: {hero} contra {n} inimigos.", "steam.yourHero":"seu herói", "steam.checkConn":"{msg} Verifique sua conexão.",
+    "steam.reading":"Lendo seu histórico…", "steam.noMatches":"Ainda não há partidas registradas para essa conta.",
+    "steam.unknownHero":"Sua última partida foi com um herói que não está na lista atual. Escolha-o à mão.",
+    "steam.last":"Sua última partida (há {m} min) foi com {hero}. Agora escolha os inimigos.",
+    "rec.loading":"Consultando partidas reais… (pode levar 5–15 s)", "rec.few":"Não há partidas suficientes com esses filtros. Tente 'Todos' os ranks ou 30 dias.",
+    "sub.vs":"{hero} contra {enemies}. ", "sub.general":"{hero}: build com maior win rate do herói, sem inimigos escolhidos. ",
+    "sub.based":"Baseado em {n} partidas do herói. Os minutos são a média de compra nessas partidas.",
+    "item.meta":"{slot} · T{tier} · compra ~{time} · {n} partidas",
+    "phase.lane":"Fase de rotas · 0–10 min", "phase.mid":"Mid game · 10–20 min", "phase.late":"Late game · 20–30 min", "phase.end":"Final · 30+ min",
+    "verb.upgrade":"Melhorar", "verb.sell":"Vender", "verb.buy":"Comprar",
+    "step.upgradeSub":"T{tier} · desconto de {n} pelo componente", "step.sellSub":"libera um slot · você recupera a metade",
+    "step.comp":"componente de uma melhoria próxima", "step.extra":"slot extra (abre ao destruir um Walker)", "step.active":" · ativo",
+    "cam.header":"Foto da partida", "cam.gallery":"Escolher da galeria", "cam.take":"Tirar foto", "cam.cancel":"Cancelar", "cam.fail":"Não consegui abrir a câmera: {msg}",
+    "boot.fail":"Não consegui carregar os heróis: {msg} Verifique sua conexão; tento de novo sozinho quando ela voltar.",
+  },
+};
+const LANGS = ["es", "pt"];
+let LANG = (() => {
+  let s = null; try{ s = localStorage.getItem("dl_lang"); }catch(e){}
+  return LANGS.includes(s) ? s : /^pt/i.test(navigator.language || "") ? "pt" : "es";
+})();
+// t(clave, {var}) → texto en el idioma actual. Las variables van tal cual: escaparlas si el texto va a innerHTML
+const t = (k, v = {}) => (I18N[LANG][k] ?? I18N.es[k] ?? k).replace(/\{(\w+)\}/g, (_, n) => v[n] ?? "");
+// Error con clave: su mensaje se vuelve a traducir si cambias de idioma
+const apiError = (key, vars) => Object.assign(new Error(t(key, vars)), { key, vars });
+const errMsg = e => e?.key ? t(e.key, e.vars) : (e?.message || String(e));
+const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+// Datos de la API: solo imágenes https del bucket conocido y números de verdad (defensa en profundidad además de esc())
+const IMG_ORIGIN = "https://assets-bucket.deadlock-api.com/";
+const safeImg = u => typeof u === "string" && u.startsWith(IMG_ORIGIN) ? u : "";
+const num = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v) : d;
+const SLOTS = new Set(["weapon", "vitality", "spirit"]);
+const norm = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/&/g, "y").trim();
+const state = { heroes: [], items: new Map(), byClass: new Map(), me: null, enemies: [], run: null };
+
+function store(key, val){ try{ if(val===undefined) return localStorage.getItem(key); if(val===null) return localStorage.removeItem(key); localStorage.setItem(key,val);}catch(e){ return null; } }
+
+async function getJSON(url){
+  let r;
+  try{ r = await fetch(url); }
+  catch(e){ throw apiError("err.offline"); }
+  if(r.status === 429) throw apiError("err.429");
+  if(!r.ok) throw apiError("err.http", { s: r.status });
+  return r.json();
+}
+// Guarda en el teléfono solo lo que la app usa, para que la caché quede liviana
+async function cachedMapped(key, hours, load){
+  try{
+    const raw = store(key);
+    if(raw){ const c = JSON.parse(raw); if(Date.now()-c.t < hours*3600e3) return c.d; }
+  }catch(e){}
+  const d = await load();
+  try{ store(key, JSON.stringify({t:Date.now(), d})); }catch(e){}
+  return d;
+}
+
+// msg puede ser una función: así el aviso se vuelve a escribir al cambiar de idioma
+let lastStatus = null;
+function setStatus(msg, kind){
+  const s = $("status");
+  lastStatus = msg ? { msg, kind } : null;
+  if(!msg){ s.hidden = true; return; }
+  s.hidden = false; s.textContent = typeof msg === "function" ? msg() : msg; s.className = "status" + (kind ? " "+kind : "");
+}
+
+/* ---------- Assets (inglés para mostrar; español o portugués para buscar) ---------- */
+async function loadAssets(){
+  const [heroes, items] = await Promise.all([
+    cachedMapped("dl_heroes_"+CACHE_V, 24, async () => {
+      const [en, es, pt] = await Promise.all([
+        getJSON(`${API}/assets/heroes?only_active=true`),
+        getJSON(`${API}/assets/heroes?only_active=true&language=spanish`).catch(() => []),
+        getJSON(`${API}/assets/heroes?only_active=true&language=brazilian`).catch(() => []),
+      ]);
+      const esName = new Map(es.map(h => [h.id, h.name])), ptName = new Map(pt.map(h => [h.id, h.name]));
+      // in_development (p. ej. Violet y Baba) se incluye: son jugables y tienen partidas
+      return en.filter(h => !h.disabled && Number.isInteger(h.id)).map(h => {
+        const im = h.images || {};
+        return { id:h.id, name:String(h.name ?? ""), es: String(esName.get(h.id) || ""), pt: String(ptName.get(h.id) || ""),
+          img: safeImg(im.icon_image_small_webp || im.icon_image_small || im.icon_hero_card),
+          // retratos oficiales para reconocer la foto: barra superior, tarjeta e ícono
+          refs: [im.top_bar_vertical_image_webp || im.top_bar_vertical_image, im.icon_hero_card_webp || im.icon_hero_card, im.icon_image_small_webp || im.icon_image_small].map(safeImg).filter(Boolean) };
+      });
+    }),
+    cachedMapped("dl_items_"+CACHE_V, 24, async () => {
+      const [en, es, pt] = await Promise.all([
+        getJSON(`${API}/assets/items/by-type/upgrade`),
+        getJSON(`${API}/assets/items/by-type/upgrade?language=spanish`).catch(() => []),
+        getJSON(`${API}/assets/items/by-type/upgrade?language=brazilian`).catch(() => []),
+      ]);
+      const esName = new Map(es.map(i => [i.id, i.name])), ptName = new Map(pt.map(i => [i.id, i.name]));
+      return en.filter(i => i.shopable && !i.disabled && Number.isInteger(i.id) && [1,2,3,4].includes(i.item_tier)).map(i => ({
+        id:i.id, cls:String(i.class_name ?? ""), name:String(i.name ?? ""), es: String(esName.get(i.id) || ""), pt: String(ptName.get(i.id) || ""),
+        tier:i.item_tier, slot: SLOTS.has(i.item_slot_type) ? i.item_slot_type : "", cost: num(i.cost) || TIER_COST[i.item_tier],
+        comps: Array.isArray(i.component_items) ? i.component_items.map(String) : [], active: !!i.is_active_item,
+        // arte de la tienda del juego (el mismo que muestra la Curiosity Shop y la wiki)
+        img: safeImg(i.shop_image_webp || i.shop_image || i.image_webp || i.image) }));
+    }),
+  ]);
+  state.heroes = heroes.sort((a,b)=>a.name.localeCompare(b.name));
+  for(const it of items){ state.items.set(it.id, it); state.byClass.set(it.cls, it); }
+}
+
+/* ---------- Lobby UI ---------- */
+const heroById = id => state.heroes.find(h => h.id === id);
+// nombre en el idioma elegido (para buscar y como ayuda al mantener el dedo); se muestra el inglés
+const locName = x => (LANG === "pt" ? x.pt : x.es) || "";
+const heroMatches = (h, q) => !q || norm(h.name).includes(q) || norm(locName(h)).includes(q);
+
+function renderSlots(){
+  const el = $("slots"); el.innerHTML = "";
+  const cells = [state.me, ...state.enemies, ...Array(6 - state.enemies.length).fill(null)];
+  cells.forEach((id, i) => {
+    const d = document.createElement("div");
+    d.className = "slot" + (i===0 ? " me" : "");
+    const h = id != null ? heroById(id) : null;
+    if(h){
+      d.innerHTML = `<img alt="" src="${esc(h.img)}"><button class="x" aria-label="${esc(t("slot.remove", { name: h.name }))}"></button>`;
+      d.querySelector("button").onclick = () => {
+        if(i===0) state.me = null; else state.enemies.splice(i-1,1);
+        update();
+      };
+    } else d.textContent = i===0 ? t("slot.me") : "—";
+    el.appendChild(d);
+  });
+  $("pickmode").innerHTML = state.me == null ? t("pick.me") : state.enemies.length < 6 ? t("pick.enemies") : t("pick.full");
+}
+
+function visibleHeroes(){
+  const q = norm($("hero-filter").value);
+  return state.heroes.filter(h => heroMatches(h, q));
+}
+
+function renderGrid(){
+  const grid = $("hero-grid"); grid.innerHTML = "";
+  for(const h of visibleHeroes()){
+    const b = document.createElement("button");
+    b.className = "hero"; b.type = "button";
+    if(locName(h) && locName(h) !== h.name) b.title = locName(h);
+    b.dataset.state = h.id===state.me ? "me" : state.enemies.includes(h.id) ? "enemy" : "";
+    b.innerHTML = `<img alt="" loading="lazy" src="${esc(h.img)}"><span>${esc(h.name)}</span>`;
+    b.onclick = () => choose(h.id);
+    grid.appendChild(b);
+  }
+}
+
+// Al elegir desde la búsqueda, el cuadro se vacía y queda listo para escribir el siguiente
+function choose(id){
+  const f = $("hero-filter");
+  const wasSearching = f.value.trim() !== "";
+  f.value = "";
+  pickHero(id);
+  if(wasSearching) f.focus();
+}
+
+function pickHero(id){
+  if(state.me === id){ state.me = null; }
+  else if(state.enemies.includes(id)){ state.enemies = state.enemies.filter(e=>e!==id); }
+  else if(state.me == null){ state.me = id; }
+  else if(state.enemies.length < 6){ state.enemies.push(id); }
+  update();
+}
+
+function update(){
+  renderSlots(); renderGrid();
+  $("btn-go").disabled = state.me == null;
+  try{ store("dl_lobby", JSON.stringify({me:state.me, enemies:state.enemies})); }catch(e){}
+}
+
+/* ---------- Foto de la partida ---------- */
+const photo = { src:null, view:null, box:null, drag:null, results:null, zoomed:false };
+
+function photoHelp(){
+  const help = $("photo-help");
+  if(!photo.src){ $("photo-tools").hidden = true; return; }
+  $("photo-tools").hidden = false;
+  $("btn-photo-full").hidden = !photo.zoomed;
+  help.innerHTML = photo.results ? t("photo.helpResults") : photo.zoomed ? t("photo.helpZoom") : t("photo.helpStart");
+}
+
+async function loadPhoto(file){
+  const url = URL.createObjectURL(file);
+  try{
+    const im = new Image(); im.src = url; await im.decode();
+    const k = Math.min(1, 1800 / Math.max(im.naturalWidth, im.naturalHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.round(im.naturalWidth*k); c.height = Math.round(im.naturalHeight*k);
+    c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+    Object.assign(photo, { src:c, view:{x:0,y:0,w:c.width,h:c.height}, box:null, results:null, zoomed:false });
+    $("photo-wrap").hidden = false; $("scan-res").innerHTML = ""; $("scan-actions").hidden = true;
+    drawPhoto(); photoHelp();
+    // los retratos de referencia se cargan mientras el usuario encuadra
+    LobbyScan.prepare(state.heroes.map(h => ({ id:h.id, refs:h.refs || [] })));
+  }catch(e){
+    setStatus(() => t("photo.openFail"), "err");
+  }finally{ URL.revokeObjectURL(url); }
+}
+
+function drawPhoto(){
+  const cv = $("photo-canvas"), v = photo.view;
+  cv.width = Math.min(1400, Math.round(v.w)); cv.height = Math.round(cv.width * v.h / v.w);
+  const x = cv.getContext("2d"), k = cv.width / v.w;
+  x.drawImage(photo.src, v.x, v.y, v.w, v.h, 0, 0, cv.width, cv.height);
+  const b = photo.drag || photo.box;
+  if(!b) return;
+  const bx = (b.x - v.x)*k, by = (b.y - v.y)*k, bw = b.w*k, bh = b.h*k;
+  x.fillStyle = "rgba(0,0,0,.45)";
+  x.fillRect(0,0,cv.width,by); x.fillRect(0,by+bh,cv.width,cv.height-by-bh);
+  x.fillRect(0,by,bx,bh); x.fillRect(bx+bw,by,cv.width-bx-bw,bh);
+  x.strokeStyle = "#c9a45c"; x.lineWidth = Math.max(2, cv.width/400); x.strokeRect(bx,by,bw,bh);
+  x.setLineDash([6,5]); x.lineWidth = Math.max(1, cv.width/700);
+  for(let i=1;i<6;i++){ x.beginPath(); x.moveTo(bx+bw*i/6, by); x.lineTo(bx+bw*i/6, by+bh); x.stroke(); }
+  x.setLineDash([]);
+}
+
+function toPhoto(ev){
+  const cv = $("photo-canvas"), r = cv.getBoundingClientRect(), v = photo.view;
+  return { x: v.x + (ev.clientX - r.left) / r.width * v.w, y: v.y + (ev.clientY - r.top) / r.height * v.h };
+}
+function wirePhotoCanvas(){
+  const cv = $("photo-canvas");
+  cv.addEventListener("pointerdown", ev => {
+    if(!photo.src) return;
+    cv.setPointerCapture(ev.pointerId);
+    const p = toPhoto(ev); photo.drag = { x0:p.x, y0:p.y, x:p.x, y:p.y, w:0, h:0 };
+  });
+  cv.addEventListener("pointermove", ev => {
+    if(!photo.drag) return;
+    const p = toPhoto(ev), d = photo.drag;
+    d.x = Math.min(d.x0, p.x); d.y = Math.min(d.y0, p.y); d.w = Math.abs(p.x - d.x0); d.h = Math.abs(p.y - d.y0);
+    drawPhoto();
+  });
+  const end = () => {
+    const d = photo.drag; photo.drag = null;
+    if(!d || d.w < 12 || d.h < 6){ drawPhoto(); return; }
+    const box = { x:d.x, y:d.y, w:d.w, h:d.h };
+    // recuadro chico sobre la foto completa: acercar para ajustarlo con precisión
+    if(!photo.zoomed && box.w < photo.src.width * 0.6){
+      const mx = box.w * 0.25, my = box.h * 1.2;
+      const x = Math.max(0, box.x - mx), y = Math.max(0, box.y - my);
+      photo.view = { x, y, w: Math.min(photo.src.width - x, box.w + 2*mx), h: Math.min(photo.src.height - y, box.h + 2*my) };
+      photo.zoomed = true; photo.box = null; photo.results = null;
+      drawPhoto(); photoHelp(); return;
+    }
+    photo.box = box; drawPhoto(); runScan();
+  };
+  cv.addEventListener("pointerup", end);
+  cv.addEventListener("pointercancel", () => { photo.drag = null; drawPhoto(); });
+}
+
+async function runScan(){
+  setStatus(() => t("scan.running"));
+  try{
+    await LobbyScan.prepare(state.heroes.map(h => ({ id:h.id, refs:h.refs || [] })));
+    await new Promise(r => setTimeout(r, 30));   // deja pintar el recuadro antes de calcular
+    const res = LobbyScan.scan(photo.src, photo.box, 6);
+    photo.results = res.map(r => ({ ...r, pick:0 }));
+    renderScan(); photoHelp();
+    const low = photo.results.filter(r => r.conf < LOW_CONF).length;
+    setStatus(() => low === 1 ? t("scan.low1") : low ? t("scan.lowN", { n: low }) : t("scan.ok"), low ? "err" : "ok");
+  }catch(e){ setStatus(() => t("scan.fail", { msg: errMsg(e) }), "err"); }
+}
+
+function renderScan(){
+  const wrap = $("scan-res"); wrap.innerHTML = "";
+  photo.results.forEach((r, i) => {
+    const id = r.alts[r.pick] ?? r.id, h = heroById(id);
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "scan-cell";
+    b.dataset.low = (r.pick === 0 && r.conf < LOW_CONF) ? "1" : "0";
+    const crop = document.createElement("canvas"); crop.width = 48; crop.height = 80;
+    crop.getContext("2d").drawImage(photo.src, r.rect.x, r.rect.y, r.rect.w, r.rect.h, 0, 0, 48, 80);
+    b.appendChild(crop);
+    b.insertAdjacentHTML("beforeend", `<img alt="" src="${esc(h?.img)}"><span>${esc(h?.name || "?")}</span>${b.dataset.low === "1" ? `<span class="chk">${esc(t("scan.check"))}</span>` : ""}`);
+    b.setAttribute("aria-label", t("scan.cell", { i: i+1, name: h?.name || t("scan.unknown") }));
+    b.onclick = () => { r.pick = (r.pick + 1) % r.alts.length; renderScan(); };
+    wrap.appendChild(b);
+  });
+  $("scan-actions").hidden = false;
+}
+
+function useScan(){
+  const ids = [];
+  for(const r of photo.results){ const id = r.alts[r.pick] ?? r.id; if(id !== state.me && !ids.includes(id)) ids.push(id); }
+  state.enemies = ids.slice(0, 6);
+  update();
+  const names = state.enemies.map(id => heroById(id)?.name).join(", "), needMe = state.me == null;
+  setStatus(() => t("scan.loaded", { names }) + (needMe ? t("scan.pickMe") : ""), "ok");
+}
+
+/* ---------- Steam ID ---------- */
+function toAccountId(raw){
+  const s = raw.trim();
+  const m = s.match(/\[U:1:(\d+)\]/i); if(m) return Number(m[1]);
+  if(/^7656\d{13}$/.test(s)) return Number(BigInt(s) - STEAM64_BASE);
+  if(/^\d{1,10}$/.test(s)) return Number(s);
+  const url = s.match(/profiles\/(7656\d{13})/); if(url) return Number(BigInt(url[1]) - STEAM64_BASE);
+  return null;
+}
+
+async function liveLookup(){
+  const id = toAccountId($("steam-id").value);
+  if(id == null){ setStatus(() => t("steam.invalid"), "err"); return; }
+  store("dl_steam", $("steam-id").value.trim());
+  setStatus(() => t("steam.searching"));
+  try{
+    const matches = await getJSON(`${API}/matches/active?account_ids=${id}`);
+    const match = matches.find(m => (m.players||[]).some(p => p.account_id === id));
+    if(!match){ setStatus(() => t("steam.notFound"), "err"); return; }
+    const me = match.players.find(p => p.account_id === id);
+    state.me = heroById(me.hero_id) ? me.hero_id : null;
+    state.enemies = match.players.filter(p => p.team !== me.team && heroById(p.hero_id)).map(p => p.hero_id).slice(0,6);
+    const hero = heroById(state.me)?.name, n = state.enemies.length;
+    setStatus(() => t("steam.found", { hero: hero || t("steam.yourHero"), n }), "ok");
+    update();
+  }catch(e){ setStatus(() => t("steam.checkConn", { msg: errMsg(e) }), "err"); }
+}
+
+async function lastHero(){
+  const id = toAccountId($("steam-id").value);
+  if(id == null){ setStatus(() => t("steam.invalidShort"), "err"); return; }
+  store("dl_steam", $("steam-id").value.trim());
+  setStatus(() => t("steam.reading"));
+  try{
+    const hist = await getJSON(`${API}/players/${id}/match-history`);
+    if(!hist.length){ setStatus(() => t("steam.noMatches"), "err"); return; }
+    hist.sort((a,b)=>b.start_time-a.start_time);
+    if(!heroById(hist[0].hero_id)){ setStatus(() => t("steam.unknownHero"), "err"); return; }
+    state.me = hist[0].hero_id;
+    const mins = Math.round((Date.now()/1000 - hist[0].start_time)/60);
+    const hero = heroById(state.me).name;
+    setStatus(() => t("steam.last", { m: mins, hero }), "ok");
+    update();
+  }catch(e){ setStatus(() => errMsg(e), "err"); }
+}
+
+/* ---------- Datos ---------- */
+function filters(){
+  const p = new URLSearchParams({ min_unix_timestamp: Math.floor(Date.now()/1000) - Number($("days").value)*86400 });
+  if($("rank").value) p.set("min_average_badge", $("rank").value);
+  return p;
+}
+function itemStatsUrl(withEnemies){
+  const p = filters(); p.set("hero_id", state.me); p.set("min_matches", MIN_N);
+  if(withEnemies && state.enemies.length) p.set("enemy_hero_ids", state.enemies.join(","));
+  return `${API}/analytics/item-stats?${p}`;
+}
+
+// Une las filas de la API con los items de la tienda y calcula WR suavizado, Δ, pick rate y tasa de venta
+function score(rows, baseRows, heroTotal){
+  const baseMap = new Map(baseRows.map(r=>[r.item_id, r]));
+  const tot = rows.reduce((a,r)=>({w:a.w+r.wins, n:a.n+r.matches}), {w:0,n:0});
+  const heroWR = tot.n ? tot.w/tot.n : .5;
+  const out = [];
+  for(const raw of rows){
+    const r = { ...raw, wins:num(raw.wins), matches:num(raw.matches), sold: raw.sold == null ? null : num(raw.sold),
+      avg_buy_time_s:num(raw.avg_buy_time_s), avg_sell_time_s:num(raw.avg_sell_time_s) };
+    const it = state.items.get(r.item_id); if(!it || !r.matches) continue;
+    const b = baseMap.get(r.item_id);
+    const wr = r.wins / r.matches;
+    const adj = (r.wins + PRIOR_K*heroWR) / (r.matches + PRIOR_K);
+    const pick = heroTotal ? (b ? b.matches : r.matches) / heroTotal : 0;
+    out.push({ ...it, wr, adj, n:r.matches,
+      delta: b ? wr - b.wins/b.matches : 0, pick,
+      sellRate: r.sold != null ? r.sold / r.matches : 0,
+      buy: r.avg_buy_time_s || 0, sellAt: r.avg_sell_time_s || 0,
+      value: (adj - heroWR) + 0.04*Math.sqrt(Math.max(0, pick)) });
+  }
+  return { rows: out, heroWR };
+}
+
+/* ---------- Construcción de la build exacta ----------
+   1) Build final: 12 items "permanentes" (los que casi nadie vende), mejor valor por tier.
+   2) Items de fase de líneas: los temporales más usados antes del minuto 12.
+   3) Componentes: cada item final con componente se compra en dos pasos (componente y luego mejora).
+   4) Línea de tiempo por minuto promedio de compra; vende lo temporal cuando faltan slots. */
+function buildPlan(rows){
+  const usable = rows.filter(r => r.pick >= MIN_PICK && r.n >= MIN_N);
+  const isComponentOf = (comp, item) => item.comps.includes(comp.cls);
+
+  const finalSet = [];
+  const caps = {...FINAL_CAPS};
+  for(const r of usable.filter(r => r.sellRate < 0.5).sort((a,b)=>b.value-a.value)){
+    if(finalSet.length >= MAX_SLOTS) break;
+    if(!caps[r.tier]) continue;
+    if(finalSet.some(f => isComponentOf(r, f) || isComponentOf(f, r))) continue;
+    finalSet.push(r); caps[r.tier]--;
+  }
+
+  const early = usable.filter(r => r.sellRate >= 0.5 && r.buy < 720 && r.tier <= 2 && !finalSet.includes(r))
+    .sort((a,b)=>b.value-a.value).slice(0, 4);
+
+  const plan = [...early, ...finalSet];
+  const byCls = new Map(rows.map(r=>[r.cls, r]));
+  for(const f of [...finalSet]){
+    for(const c of f.comps){
+      if(plan.some(p => p.cls === c)) continue;
+      const base = byCls.get(c) || state.byClass.get(c);
+      if(!base) continue;
+      plan.push({ ...base, buy: base.buy || 0, sellRate: 1, n: base.n || 0, value: base.value ?? -1, isComp: true });
+    }
+  }
+  for(const f of plan){
+    for(const c of f.comps){
+      const comp = plan.find(p => p.cls === c);
+      if(comp && (!comp.buy || comp.buy > f.buy - 60)) comp.buy = Math.max(0, f.buy - 60);
+    }
+  }
+
+  const order = plan.slice().sort((a,b)=> a.buy - b.buy || a.tier - b.tier);
+  const inv = []; const steps = []; let spent = 0;
+  const neededLater = (it, idx) => order.slice(idx+1).some(f => isComponentOf(it, f));
+  order.forEach((it, idx) => {
+    const owned = inv.filter(o => isComponentOf(o, it));
+    if(owned.length){
+      owned.forEach(o => inv.splice(inv.indexOf(o), 1));
+      const price = Math.max(0, it.cost - owned.reduce((a,o)=>a+o.cost, 0));
+      spent += price; inv.push(it);
+      steps.push({ kind:"upgrade", t:it.buy, from:owned, item:it, price, spent, slots:inv.length });
+      return;
+    }
+    if(inv.length >= MAX_SLOTS){
+      const sellable = inv.filter(o => !finalSet.includes(o) && !neededLater(o, idx)).sort((a,b)=>a.value-b.value);
+      const s = sellable[0] || inv.slice().sort((a,b)=>a.value-b.value)[0];
+      inv.splice(inv.indexOf(s), 1);
+      const back = Math.round(s.cost/2);
+      spent -= back;
+      steps.push({ kind:"sell", t:it.buy, item:s, price:-back, spent, slots:inv.length });
+    }
+    spent += it.cost; inv.push(it);
+    steps.push({ kind:"buy", t:it.buy, item:it, price:it.cost, spent, slots:inv.length,
+      extraSlot: inv.length > BASE_SLOTS && !steps.some(s => s.slots > BASE_SLOTS) });
+  });
+  return { steps, final: inv.slice().sort((a,b)=> b.tier - a.tier || a.buy - b.buy), finalSet };
+}
+
+/* ---------- Vista guardable (sobrevive a cerrar la app en medio de la partida) ---------- */
+const itemView = it => ({ id:it.id, name:it.name, es:it.es, pt:it.pt, img:it.img, slot:it.slot, tier:it.tier, cost:it.cost,
+  active:!!it.active, isComp:!!it.isComp, wr:it.wr, delta:it.delta, n:it.n, buy:it.buy });
+const lobbySig = () => [state.me, state.enemies.slice().sort((a,b)=>a-b).join("."), $("rank").value, $("days").value].join("|");
+
+function makeView(rows, hasEnemies, plan, heroTotal){
+  const hero = heroById(state.me);
+  const enemyNames = state.enemies.map(id => heroById(id)?.name).filter(Boolean).join(", ");
+  const counters = hasEnemies ? rows.filter(r => r.n >= MIN_N*2 && r.pick >= MIN_PICK && r.delta >= 0.015).sort((a,b)=>b.delta-a.delta).slice(0,3) : [];
+  const counterIds = new Set(counters.map(c=>c.id));
+  return {
+    // se guarda el dato y no el texto, para mostrarlo en el idioma elegido
+    subData: { hero: hero.name, enemies: hasEnemies ? enemyNames : "", total: heroTotal },
+    counters: counters.map(itemView),
+    steps: plan.steps.map(s => ({ kind:s.kind, t:s.t, item:itemView(s.item), from:(s.from||[]).map(itemView),
+      price:s.price, spent:s.spent, slots:s.slots, extraSlot:!!s.extraSlot, counter:counterIds.has(s.item.id) })),
+    final: plan.final.map(itemView),
+    why: plan.final.filter(it => it.wr != null).map(it => ({ ...itemView(it), counter:counterIds.has(it.id) })),
+  };
+}
+
+function saveRun(){ try{ store(RUN_KEY, JSON.stringify(state.run)); }catch(e){} }
+function loadRun(){
+  try{
+    const r = JSON.parse(store(RUN_KEY) || "null");
+    if(r && Date.now() - r.t < RUN_MAX_AGE_H*3600e3) return r;
+  }catch(e){}
+  return null;
+}
+
+async function recommend(){
+  if(state.me == null) return;
+  $("btn-go").disabled = true;
+  setStatus(() => t("rec.loading"));
+  try{
+    const hsP = getJSON(`${API}/analytics/hero-stats?${filters()}`).catch(() => []);
+    const reqs = [getJSON(itemStatsUrl(false))];
+    if(state.enemies.length) reqs.push(getJSON(itemStatsUrl(true)));
+    const [[base, vs], hs] = await Promise.all([Promise.all(reqs), hsP]);
+    const heroRow = hs.find(h => h.hero_id === state.me);
+    const heroTotal = heroRow?.matches || Math.max(1, ...base.map(r=>r.matches));
+    const { rows } = score(vs || base, base, heroTotal);
+    if(rows.length < 8){ setStatus(() => t("rec.few"), "err"); return; }
+    const sig = lobbySig();
+    const prev = state.run && state.run.sig === sig ? state.run.done : [];
+    state.run = { sig, t: Date.now(), view: makeView(rows, !!vs, buildPlan(rows), heroTotal), done: prev };
+    saveRun();
+    renderResult(true);
+    setStatus(null);
+  }catch(e){ setStatus(() => errMsg(e), "err"); }
+  finally{ $("btn-go").disabled = state.me == null; }
+}
+
+/* ---------- Render ---------- */
+const fmtPct = x => (x*100).toFixed(1) + "%";
+const fmtDelta = d => (d>=0?"+":"") + (d*100).toFixed(1);
+const fmtTime = s => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,"0")}`;
+const fmtSouls = n => Number(n).toLocaleString(LANG === "pt" ? "pt-BR" : "es-CL");
+const SLOT_NAME = {weapon:"Weapon", vitality:"Vitality", spirit:"Spirit"};
+const iconHtml = (it, cls="") => `<img class="icon ${cls}" data-slot="${esc(it.slot)}" alt="" loading="lazy" src="${esc(it.img)}"${locName(it) && locName(it)!==it.name ? ` title="${esc(locName(it))}"` : ""}>`;
+
+function itemRow(it){
+  const div = document.createElement("div");
+  div.className = "item";
+  div.innerHTML = `
+    ${iconHtml(it)}
+    <div style="min-width:0"><div class="name">${esc(it.name)}${it.counter?'<span class="pill counter">counter</span>':''}</div>
+      <div class="meta">${t("item.meta", { slot: SLOT_NAME[it.slot] || "", tier: num(it.tier), time: fmtTime(it.buy), n: fmtSouls(it.n) })}</div></div>
+    <div class="nums">${fmtPct(it.wr)}<br><span class="${it.delta>=0?'up':'down'}">Δ ${fmtDelta(it.delta)}</span></div>`;
+  return div;
+}
+
+function phaseOf(s){ return t(s < 600 ? "phase.lane" : s < 1200 ? "phase.mid" : s < 1800 ? "phase.late" : "phase.end"); }
+
+function stepText(s){
+  const it = s.item;
+  const tag = s.counter ? '<span class="pill counter">counter</span>' : "";
+  if(s.kind === "upgrade") return {
+    icons: `${s.from.map(f=>iconHtml(f,"sm")).join("")}<span class="arrow" aria-hidden="true">→</span>${iconHtml(it,"sm")}`,
+    main: `<span class="verb">${t("verb.upgrade")}</span> ${s.from.map(f=>`<b>${esc(f.name)}</b>`).join(" + ")} → <b>${esc(it.name)}</b>${tag}`,
+    sub: t("step.upgradeSub", { tier: num(it.tier), n: fmtSouls(it.cost - s.price) }) };
+  if(s.kind === "sell") return {
+    icons: iconHtml(it,"sm"), main: `<span class="verb">${t("verb.sell")}</span> <b>${esc(it.name)}</b>`,
+    sub: t("step.sellSub") };
+  const note = it.isComp ? t("step.comp") : s.extraSlot ? t("step.extra") : `${SLOT_NAME[it.slot]||""} · T${num(it.tier)}${it.active ? t("step.active") : ""}`;
+  return { icons: iconHtml(it,"sm"), main: `<span class="verb">${t("verb.buy")}</span> <b>${esc(it.name)}</b>${tag}`, sub: note };
+}
+const nextIndex = () => state.run.view.steps.findIndex((_, i) => !state.run.done.includes(i));
+
+function renderSteps(){
+  const { steps } = state.run.view, done = new Set(state.run.done), next = nextIndex();
+  const ol = $("steps"); ol.innerHTML = "";
+  let phase = "";
+  steps.forEach((s, i) => {
+    const ph = phaseOf(s.t);
+    if(ph !== phase){ phase = ph; const li = document.createElement("li"); li.className = "phase"; li.textContent = ph; ol.appendChild(li); }
+    const li = document.createElement("li");
+    li.className = "step" + (done.has(i) ? " done" : "") + (i === next ? " next" : "");
+    li.dataset.kind = s.kind; li.tabIndex = 0;
+    li.setAttribute("role", "checkbox"); li.setAttribute("aria-checked", String(done.has(i)));
+    const st = stepText(s);
+    li.innerHTML = `<span class="nt"><span class="n">${done.has(i) ? "✓" : i+1}</span><span class="t">${fmtTime(s.t)}</span></span>
+      <div class="what"><span class="icons">${st.icons}</span><div class="txt">${st.main}<small>${st.sub}</small></div></div>
+      <div class="cost">${s.price >= 0 ? "−" : "+"}${fmtSouls(Math.abs(s.price))}<small>Σ ${fmtSouls(s.spent)}</small><small>${num(s.slots)}/${s.slots > BASE_SLOTS ? MAX_SLOTS : BASE_SLOTS} slots</small></div>`;
+    li.onclick = () => toggleStep(i);
+    li.onkeydown = e => { if(e.key === " " || e.key === "Enter"){ e.preventDefault(); toggleStep(i); } };
+    ol.appendChild(li);
+  });
+}
+
+function toggleStep(i){
+  const d = state.run.done, k = d.indexOf(i);
+  if(k >= 0) d.splice(k, 1); else d.push(i);
+  saveRun(); renderSteps(); renderTracker();
+}
+
+function renderTracker(){
+  const tr = $("tracker");
+  if(!state.run){ tr.hidden = true; document.body.classList.remove("tracking"); syncNotif(); return; }
+  tr.hidden = false; document.body.classList.add("tracking");
+  const steps = state.run.view.steps, next = nextIndex();
+  $("tr-undo").disabled = !state.run.done.length;
+  if(next < 0){
+    $("tr-icon").innerHTML = "";
+    // al terminar la build, en vez de "Comprado" aparece la invitación a Ko-fi (no en la versión de Play)
+    $("tr-txt").innerHTML = `<b>${t("tr.complete")}</b><small>${esc(PLAY ? t("tr.marked", { n: steps.length }) : t("tr.kofi"))}</small>`;
+    $("tr-done").hidden = !PLAY; $("tr-done").disabled = PLAY; $("tr-kofi").hidden = PLAY;
+    releaseWake(); tickClock(); syncNotif();
+    return;
+  }
+  const s = steps[next], st = stepText(s);
+  $("tr-icon").innerHTML = st.icons;
+  $("tr-txt").innerHTML = `${st.main}<small>${t("tr.step", { i: next+1, n: steps.length, price: (s.price >= 0 ? "−" : "+") + fmtSouls(Math.abs(s.price)), time: fmtTime(s.t) })}</small>`;
+  $("tr-done").hidden = false; $("tr-done").disabled = false; $("tr-kofi").hidden = true;
+  $("tr-done").textContent = t(s.kind === "sell" ? "tr.sold" : s.kind === "upgrade" ? "tr.upgraded" : "tr.bought");
+  keepAwake(); tickClock(); syncNotif();
+}
+
+function renderResult(scroll){
+  const v = state.run.view;
+  const d = v.subData;   // builds guardadas antes del cambio de idioma traen el texto ya hecho (v.sub)
+  $("res-sub").textContent = d ? (d.enemies ? t("sub.vs", { hero: d.hero, enemies: d.enemies }) : t("sub.general", { hero: d.hero })) + t("sub.based", { n: fmtSouls(d.total) }) : (v.sub || "");
+  const cw = $("counters"); cw.innerHTML = "";
+  v.counters.forEach(c => cw.appendChild(itemRow({ ...c, counter:true })));
+  $("counters-wrap").hidden = !v.counters.length;
+  renderSteps();
+  const fin = $("final"); fin.innerHTML = "";
+  for(const it of v.final){
+    const f = document.createElement("figure");
+    f.innerHTML = `${iconHtml(it)}<figcaption>${esc(it.name)}</figcaption>`;
+    fin.appendChild(f);
+  }
+  const why = $("why"); why.innerHTML = "";
+  v.why.forEach(it => why.appendChild(itemRow(it)));
+  $("result").hidden = false;
+  renderTracker();
+  if(scroll) $("result").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
+}
+
+/* Pantalla encendida mientras sigues la build en la partida */
+let wake = null;
+async function keepAwake(){
+  if(NATIVE && Plug.KeepAwake){
+    if(wake) return;
+    wake = true;
+    try{ await Plug.KeepAwake.keepAwake(); }catch(e){ wake = null; }
+    return;
+  }
+  if(wake || !("wakeLock" in navigator) || document.visibilityState !== "visible") return;
+  try{ wake = await navigator.wakeLock.request("screen"); wake.addEventListener("release", () => { wake = null; }); }catch(e){ wake = null; }
+}
+function releaseWake(){
+  if(NATIVE && Plug.KeepAwake){ if(wake){ wake = null; Plug.KeepAwake.allowSleep().catch(()=>{}); } return; }
+  if(wake){ wake.release().catch(()=>{}); wake = null; }
+}
+document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible" && state.run && nextIndex() >= 0) keepAwake(); });
+
+/* Reloj de partida: vibra 15 s antes de cada compra y, en el APK, deja una notificación fija con "Comprado" */
+const CLOCK_KEY = "dl_clock_v1", CLOCK_LEAD = 15, CLOCK_MAX_AGE_H = 2;
+let clock = null;          // { start } = Date.now() en el 0:00 de la partida
+let clockTimer = null, armed = -1, notifKey = "?";   // "?" = limpiar al abrir una notificación que haya quedado de antes
+function loadClock(){
+  try{ const c = JSON.parse(store(CLOCK_KEY) || "null"); if(c && Number.isFinite(c.start) && Date.now() - c.start < CLOCK_MAX_AGE_H*3600e3) return { start: c.start }; }catch(e){}
+  return null;
+}
+function setClock(c){
+  clock = c; armed = -1;
+  store(CLOCK_KEY, c ? JSON.stringify(c) : null);
+  clearInterval(clockTimer); clockTimer = c ? setInterval(tickClock, 1000) : null;
+  renderTracker();
+}
+const matchSec = () => (Date.now() - clock.start) / 1000;
+function buzz(){
+  if(NATIVE && Plug.Haptics){
+    const v = () => Plug.Haptics.vibrate({ duration: 350 }).catch(()=>{});
+    v(); setTimeout(v, 550);
+  } else navigator.vibrate?.([350, 200, 350]);
+}
+function tickClock(){
+  const b = $("tr-clock");
+  const next = state.run ? nextIndex() : -1;
+  b.classList.toggle("on", !!clock);
+  if(clock && Date.now() - clock.start > CLOCK_MAX_AGE_H*3600e3){ setClock(null); return; }
+  if(!clock){ b.classList.remove("due"); b.innerHTML = `<span>${esc(t("clock.start"))}</span>`; return; }
+  const now = matchSec();
+  if(next < 0){ b.classList.remove("due"); b.innerHTML = `<span>⏱ ${fmtTime(Math.max(0, now))}</span>`; return; }
+  const left = state.run.view.steps[next].t - now;
+  b.classList.toggle("due", left <= CLOCK_LEAD);
+  b.innerHTML = `<span>⏱ ${fmtTime(Math.max(0, now))}</span><span>${esc(left > 0 ? t("clock.in", { time: fmtTime(Math.ceil(left)) }) : t("clock.late", { time: fmtTime(-left) }))}</span>`;
+  // vibra solo al cruzar el aviso, no al ponerse al día marcando pasos atrasados
+  if(left > CLOCK_LEAD) armed = next;
+  else if(armed === next){ armed = -1; buzz(); }
+}
+function stepPlain(s){
+  if(s.kind === "upgrade") return `${t("verb.upgrade")} ${s.from.map(f => f.name).join(" + ")} → ${s.item.name}`;
+  return `${t(s.kind === "sell" ? "verb.sell" : "verb.buy")} ${s.item.name}`;
+}
+function syncNotif(){
+  if(!NATIVE || !Plug.Partida) return;
+  const next = state.run && clock ? nextIndex() : -1;
+  if(next < 0){ if(notifKey){ notifKey = ""; Plug.Partida.hide().catch(()=>{}); } return; }
+  const steps = state.run.view.steps, s = steps[next];
+  const key = `${LANG}|${clock.start}|${state.run.sig}|${next}`;
+  if(key === notifKey) return;
+  notifKey = key;
+  Plug.Partida.show({
+    channel: t("notif.channel"), title: stepPlain(s), step: next, due: Math.round(clock.start + s.t*1000),
+    text: t("tr.step", { i: next+1, n: steps.length, price: (s.price >= 0 ? "−" : "+") + fmtSouls(Math.abs(s.price)), time: fmtTime(s.t) }),
+    button: t(s.kind === "sell" ? "tr.sold" : s.kind === "upgrade" ? "tr.upgraded" : "tr.bought"),
+  }).catch(()=>{});
+}
+// diálogo para decir en qué minuto va la partida; el tiempo sigue corriendo mientras está abierto
+const dlg = { val: 0, opened: 0, timer: null };
+const dlgSec = () => Math.max(0, dlg.val + (Date.now() - dlg.opened) / 1000);
+function drawDlg(){ $("clock-val").textContent = fmtTime(dlgSec()); }
+function openClock(){
+  dlg.val = clock ? Math.max(0, Math.round(matchSec())) : 0; dlg.opened = Date.now();
+  $("clock-ok").textContent = t(clock ? "clock.save" : "clock.go");
+  $("clock-stop").hidden = !clock;
+  drawDlg(); clearInterval(dlg.timer); dlg.timer = setInterval(drawDlg, 500);
+  $("clock-dlg").showModal();
+}
+$("clock-dlg").addEventListener("close", () => clearInterval(dlg.timer));
+for(const b of document.querySelectorAll(".clock-adj button")) b.onclick = () => { dlg.val = Math.max(-(Date.now() - dlg.opened) / 1000, dlg.val + Number(b.dataset.d)); drawDlg(); };
+$("clock-cancel").onclick = () => $("clock-dlg").close();
+$("clock-stop").onclick = () => { $("clock-dlg").close(); setClock(null); };
+$("clock-ok").onclick = async () => {
+  const sec = dlgSec();
+  $("clock-dlg").close();
+  if(NATIVE && Plug.Partida){
+    try{ const p = await Plug.Partida.checkPermissions(); if(/^prompt/.test(p.notif)) await Plug.Partida.requestPermissions({ permissions: ["notif"] }); }catch(e){}
+    notifKey = "";
+  }
+  setClock({ start: Date.now() - sec*1000 });
+};
+$("tr-clock").onclick = openClock;
+// "Comprado" desde la notificación: marca solo si sigue siendo el siguiente paso
+function doneFromNotif(step){ if(state.run && Number.isInteger(step) && nextIndex() === step) toggleStep(step); }
+if(NATIVE && Plug.Partida) Plug.Partida.addListener("done", d => doneFromNotif(d?.step));
+
+/* ---------- Meta de héroes (estilo tier list) ---------- */
+// Se consulta cada vez que se abre la app; mientras llega, se muestra la última copia guardada
+const META_KEY = "dl_meta_v1", META_K = 30, META_MIN_VS = 30;
+const meta = { data: null, key: "", sort: "tier", open: null, items: new Map(), loading: null };
+const metaKey = () => `${$("rank").value}|${$("days").value}`;
+
+function computeMeta(hs, hp, hc, sy){
+  const rows = hs.filter(r => heroById(r.hero_id) && num(r.matches) > 0).map(r => ({
+    id: r.hero_id, w: num(r.wins), n: num(r.matches), k: num(r.total_kills), d: num(r.total_deaths), a: num(r.total_assists) }));
+  const games = rows.reduce((s, r) => s + r.n, 0) / 12;          // cada partida tiene 12 héroes
+  const prev = new Map(hp.map(r => [r.hero_id, { w: num(r.wins), n: num(r.matches) }]));
+  for(const r of rows){
+    r.wr = r.w / r.n; r.pick = games ? r.n / games : 0; r.kda = (r.k + r.a) / Math.max(1, r.d);
+    const p = prev.get(r.id);
+    r.trend = p && p.n >= 200 ? r.wr - p.w / p.n : null;
+  }
+  // tier: z del win rate + un poco de z de popularidad (raíz del pick, para no premiar solo a los más jugados)
+  const z = vals => { const m = vals.reduce((a, b) => a + b, 0) / vals.length; const sd = Math.sqrt(vals.reduce((a, b) => a + (b - m) ** 2, 0) / vals.length) || 1; return v => (v - m) / sd; };
+  const zw = z(rows.map(r => r.wr)), zp = z(rows.map(r => Math.sqrt(r.pick)));
+  for(const r of rows){
+    r.score = zw(r.wr) + 0.3 * zp(Math.sqrt(r.pick));
+    r.tier = r.score >= 1 ? "S" : r.score >= 0.35 ? "A" : r.score >= -0.35 ? "B" : r.score >= -1 ? "C" : "D";
+  }
+  // enfrentamientos y duplas compactos: id -> [[otro, victorias, partidas], ...]
+  const vs = {}, ally = {};
+  for(const r of hc){
+    const a = r.hero_id, b = r.enemy_hero_id, n = num(r.matches_played);
+    if(heroById(a) && heroById(b) && n > 0) (vs[a] ||= []).push([b, num(r.wins), n]);
+  }
+  for(const r of sy){
+    const a = r.hero_id1, b = r.hero_id2, n = num(r.matches_played);
+    if(heroById(a) && heroById(b) && n > 0){ (ally[a] ||= []).push([b, num(r.wins), n]); (ally[b] ||= []).push([a, num(r.wins), n]); }
+  }
+  return { rows, games: Math.round(games), vs, ally, t: Date.now() };
+}
+
+async function loadMeta(){
+  const key = metaKey();
+  if(meta.loading === key) return;
+  if(meta.key !== key){
+    meta.key = key; meta.data = null; meta.items.clear(); meta.open = null;
+    try{ const c = JSON.parse(store(META_KEY) || "null"); if(c && c.key === key && c.d?.rows) meta.data = c.d; }catch(e){}
+    renderMeta();
+  }
+  meta.loading = key;
+  $("meta-sub").textContent = t("meta.loading");
+  try{
+    const now = Math.floor(Date.now() / 1000), days = Number($("days").value), rank = $("rank").value;
+    const q = (from, to) => { const p = new URLSearchParams({ min_unix_timestamp: from }); if(to) p.set("max_unix_timestamp", to); if(rank) p.set("min_average_badge", rank); return p; };
+    const cur = q(now - days * 86400);
+    const [hs, hp, hc, sy] = await Promise.all([
+      getJSON(`${API}/analytics/hero-stats?${cur}`),
+      getJSON(`${API}/analytics/hero-stats?${q(now - 2 * days * 86400, now - days * 86400)}`).catch(() => []),
+      getJSON(`${API}/analytics/hero-counter-stats?${cur}`).catch(() => []),
+      getJSON(`${API}/analytics/hero-synergy-stats?${cur}`).catch(() => []),
+    ]);
+    if(metaKey() !== key) return;                    // cambiaron los filtros mientras cargaba
+    meta.data = computeMeta(Array.isArray(hs) ? hs : [], Array.isArray(hp) ? hp : [], Array.isArray(hc) ? hc : [], Array.isArray(sy) ? sy : []);
+    try{ store(META_KEY, JSON.stringify({ key, d: meta.data })); }catch(e){}
+    meta.loading = null;
+    renderMeta();
+  }catch(e){
+    if(metaKey() === key) $("meta-sub").textContent = t("meta.fail", { msg: errMsg(e) }) + (meta.data ? " · " + metaSub() : "");
+  }finally{ if(meta.loading === key) meta.loading = null; }
+}
+
+function metaSub(){
+  const d = meta.data, opt = id => $(id).selectedOptions[0]?.textContent || "";
+  return t("meta.sub", { n: fmtSouls(d.games), rank: opt("rank"), days: opt("days").toLowerCase(),
+    time: new Date(d.t).toLocaleTimeString(LANG === "pt" ? "pt-BR" : "es-CL", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }) });
+}
+
+const fmtCompact = n => Number(n).toLocaleString(LANG === "pt" ? "pt-BR" : "es-CL", { notation: "compact", maximumFractionDigits: 1 });
+const META_SORT = { tier: r => r.score, wr: r => r.wr, pick: r => r.pick, kda: r => r.kda };
+function renderMeta(){
+  const list = $("meta-list"); list.innerHTML = "";
+  for(const b of document.querySelectorAll("#meta-sort button")) b.setAttribute("aria-pressed", String(b.dataset.sort === meta.sort));
+  if(!meta.data){ return; }
+  if(!meta.loading) $("meta-sub").textContent = metaSub();
+  const q = norm($("meta-filter").value);
+  const rows = [...meta.data.rows].sort((a, b) => META_SORT[meta.sort](b) - META_SORT[meta.sort](a));
+  rows.forEach((r, i) => {
+    const h = heroById(r.id); if(!h || !heroMatches(h, q)) return;
+    const li = document.createElement("li");
+    li.className = "mh" + (meta.open === r.id ? " open" : "");
+    const trend = r.trend == null ? `<small>${esc(t("meta.new"))}</small>`
+      : `<small class="${r.trend >= 0 ? "up" : "down"}">${r.trend >= 0 ? "▲" : "▼"} ${Math.abs(r.trend * 100).toFixed(1)}</small>`;
+    li.innerHTML = `<button type="button" class="mh-row" aria-expanded="${meta.open === r.id}">
+      <span class="rk">${i + 1}</span><img alt="" loading="lazy" src="${esc(h.img)}">
+      <span class="nm">${esc(h.name)}<small>KDA ${r.kda.toFixed(2)} · ${esc(r.n < 500 ? t("meta.few") : t("meta.matches", { n: fmtCompact(r.n) }))}</small></span>
+      <span class="tier ${esc(r.tier)}">${esc(r.tier)}</span>
+      <span class="num">${fmtPct(r.wr)}${trend}</span>
+      <span class="num">${fmtPct(r.pick)}<small>pick</small></span></button>`;
+    if(locName(h) && locName(h) !== h.name) li.querySelector("img").title = locName(h);
+    li.querySelector("button").onclick = () => { meta.open = meta.open === r.id ? null : r.id; renderMeta(); };
+    if(meta.open === r.id) li.appendChild(metaDetail(r, h));
+    list.appendChild(li);
+  });
+}
+
+// WR suavizado de un enfrentamiento o dupla, para que 40 partidas no le ganen a 4.000
+function pairList(arr, base){
+  return (arr || []).filter(x => x[2] >= META_MIN_VS).map(([id, w, n]) => ({ id, n, wr: (w + META_K * base) / (n + META_K) }));
+}
+function metaDetail(r, h){
+  const d = document.createElement("div"); d.className = "mh-detail";
+  const vs = pairList(meta.data.vs[r.id], r.wr).sort((a, b) => b.wr - a.wr);
+  const al = pairList(meta.data.ally[r.id], r.wr).sort((a, b) => b.wr - a.wr);
+  const chips = arr => arr.length ? `<div class="mu">${arr.map(x => { const o = heroById(x.id); return `<span title="${esc(t("meta.matches", { n: fmtSouls(x.n) }))}"><img alt="" src="${esc(o.img)}">${esc(o.name)} ${fmtPct(x.wr)}</span>`; }).join("")}</div>` : `<p class="note">${esc(t("meta.noData"))}</p>`;
+  d.innerHTML = `<div><div class="eyebrow">${esc(t("meta.beats"))}</div>${chips(vs.slice(0, 3))}</div>
+    <div><div class="eyebrow">${esc(t("meta.struggles"))}</div>${chips(vs.slice(-3).reverse())}</div>
+    <div><div class="eyebrow">${esc(t("meta.allies"))}</div>${chips(al.slice(0, 3))}</div>
+    <div><div class="eyebrow">${esc(t("meta.items"))}</div><div class="mu" id="meta-items"><p class="note">${esc(t("meta.itemsLoading"))}</p></div></div>
+    <div class="row"><button type="button" class="primary" data-act="best">${esc(t("meta.best"))}</button>
+      <button type="button" data-act="lobby">${esc(t("meta.use"))}</button></div>`;
+  // build de mayor win rate del héroe, sin enemigos: se genera al tiro
+  d.querySelector('[data-act="best"]').onclick = () => {
+    state.me = r.id; state.enemies = []; update();
+    setView("build"); recommend();
+  };
+  // o ponerlo como tu héroe en el lobby que ya armaste
+  d.querySelector('[data-act="lobby"]').onclick = () => {
+    state.me = r.id; state.enemies = state.enemies.filter(e => e !== r.id); update();
+    setView("build"); $("btn-go").scrollIntoView({ block: "center" });
+  };
+  metaItems(r).then(items => {
+    const box = d.querySelector("#meta-items"); if(!box) return;
+    box.innerHTML = items.length ? items.map(it => `<span title="${esc(t("meta.matches", { n: fmtSouls(it.n) }))}">${iconHtml(it)}${fmtPct(it.wr)}</span>`).join("")
+      : `<p class="note">${esc(t("meta.noData"))}</p>`;
+  }).catch(e => { const box = d.querySelector("#meta-items"); if(box) box.innerHTML = `<p class="note">${esc(errMsg(e))}</p>`; });
+  return d;
+}
+// los 6 items permanentes con mejor puntaje para el héroe (mismo cálculo que la build)
+async function metaItems(r){
+  const k = `${meta.key}|${r.id}`;
+  if(!meta.items.has(k)){
+    const p = filters(); p.set("hero_id", r.id); p.set("min_matches", MIN_N);
+    meta.items.set(k, getJSON(`${API}/analytics/item-stats?${p}`).then(rows => {
+      const { rows: sc } = score(Array.isArray(rows) ? rows : [], Array.isArray(rows) ? rows : [], r.n);
+      return sc.filter(x => x.pick >= MIN_PICK && x.n >= MIN_N && x.sellRate < 0.5 && x.tier >= 2).sort((a, b) => b.value - a.value).slice(0, 6);
+    }).catch(e => { meta.items.delete(k); throw e; }));
+  }
+  return meta.items.get(k);
+}
+
+/* Pestañas principales: Meta y Build */
+let VIEW = "meta";
+function setView(v){
+  VIEW = v === "build" ? "build" : "meta"; store("dl_view", VIEW);
+  $("v-meta").hidden = VIEW !== "meta"; $("v-build").hidden = VIEW !== "build";
+  $("view-meta").setAttribute("aria-pressed", String(VIEW === "meta"));
+  $("view-build").setAttribute("aria-pressed", String(VIEW === "build"));
+  if(VIEW === "meta" && state.heroes.length && (!meta.data || meta.key !== metaKey())) loadMeta();
+}
+$("view-meta").onclick = () => setView("meta");
+$("view-build").onclick = () => setView("build");
+for(const b of document.querySelectorAll("#meta-sort button")) b.onclick = () => { meta.sort = b.dataset.sort; renderMeta(); };
+$("meta-filter").oninput = renderMeta;
+for(const id of ["rank", "days"]) $(id).addEventListener("change", () => { if(state.heroes.length) loadMeta(); });
+
+/* ---------- Wiring ---------- */
+function setTab(mode){
+  for(const m of ["manual","photo","steam"]) $("tab-"+m).setAttribute("aria-pressed", String(m === mode));
+  $("panel-photo").hidden = mode !== "photo";
+  $("panel-steam").hidden = mode !== "steam";
+  if(mode === "photo" && state.heroes.length) LobbyScan.prepare(state.heroes.map(h => ({ id:h.id, refs:h.refs || [] })));
+}
+$("tab-manual").onclick = () => setTab("manual");
+$("tab-photo").onclick = () => setTab("photo");
+$("tab-steam").onclick = () => setTab("steam");
+$("photo-input").onchange = e => { const f = e.target.files[0]; e.target.value = ""; if(f) loadPhoto(f); };
+// En el APK, la cámara nativa ofrece tomar la foto o elegirla de la galería
+if(NATIVE && Plug.Camera){
+  $("photo-input").addEventListener("click", async e => {
+    e.preventDefault();
+    try{
+      const p = await Plug.Camera.getPhoto({ resultType:"dataUrl", source:"PROMPT", quality:90, width:2400, height:2400,
+        correctOrientation:true, saveToGallery:false, promptLabelHeader:t("cam.header"),
+        promptLabelPhoto:t("cam.gallery"), promptLabelPicture:t("cam.take"), promptLabelCancel:t("cam.cancel") });
+      if(p?.dataUrl) loadPhoto(await (await fetch(p.dataUrl)).blob());
+    }catch(err){
+      if(!/cancel/i.test(err?.message || "")) setStatus(() => t("cam.fail", { msg: errMsg(err) }), "err");
+    }
+  });
+}
+$("btn-photo-full").onclick = () => { photo.view = {x:0,y:0,w:photo.src.width,h:photo.src.height}; photo.zoomed = false; photo.box = null; photo.results = null; $("scan-res").innerHTML = ""; $("scan-actions").hidden = true; drawPhoto(); photoHelp(); };
+// Botón atrás de Android: si la foto está en zoom, vuelve a la foto completa
+if(NATIVE && Plug.App){
+  Plug.App.addListener("backButton", ({ canGoBack }) => {
+    if($("clock-dlg").open){ $("clock-dlg").close(); return; }
+    if(photo.zoomed && !$("panel-photo").hidden){ $("btn-photo-full").click(); return; }
+    if(canGoBack) history.back(); else Plug.App.minimizeApp();
+  });
+}
+$("btn-use-scan").onclick = useScan;
+wirePhotoCanvas();
+$("btn-live").onclick = liveLookup;
+$("btn-last").onclick = lastHero;
+$("btn-go").onclick = recommend;
+$("tr-done").onclick = () => { const i = nextIndex(); if(i >= 0) toggleStep(i); };
+$("tr-undo").onclick = () => { if(state.run.done.length){ state.run.done.pop(); saveRun(); renderSteps(); renderTracker(); } };
+$("btn-reset-progress").onclick = () => { if(!state.run) return; state.run.done = []; saveRun(); renderSteps(); renderTracker(); };
+$("hero-filter").oninput = renderGrid;
+// Enter elige el héroe si la búsqueda deja uno solo
+$("hero-filter").addEventListener("keydown", e => {
+  if(e.key !== "Enter") return;
+  const v = visibleHeroes();
+  if(v.length === 1){ e.preventDefault(); choose(v[0].id); $("hero-filter").focus(); }
+});
+
+// Pone los textos fijos en el idioma elegido y vuelve a dibujar lo dinámico
+function applyLang(){
+  document.documentElement.lang = LANG === "pt" ? "pt-BR" : "es";
+  for(const el of document.querySelectorAll("[data-i18n]")) el.textContent = t(el.dataset.i18n);
+  for(const el of document.querySelectorAll("[data-i18n-html]")) el.innerHTML = t(el.dataset.i18nHtml);
+  for(const el of document.querySelectorAll("[data-i18n-ph]")) el.placeholder = t(el.dataset.i18nPh);
+  for(const el of document.querySelectorAll("[data-i18n-aria]")) el.setAttribute("aria-label", t(el.dataset.i18nAria));
+  for(const el of document.querySelectorAll("[data-i18n-title]")) el.title = t(el.dataset.i18nTitle);
+  for(const b of document.querySelectorAll(".lang button")) b.setAttribute("aria-pressed", String(b.dataset.lang === LANG));
+}
+function setLang(l){
+  if(!LANGS.includes(l) || l === LANG) return;
+  LANG = l; store("dl_lang", l);
+  applyLang();
+  if(state.heroes.length) update();
+  if(state.run) renderResult(false);
+  if(meta.data) renderMeta();
+  if(photo.src) photoHelp();
+  if(photo.results) renderScan();
+  if(lastStatus) setStatus(lastStatus.msg, lastStatus.kind);
+}
+for(const b of document.querySelectorAll(".lang button")) b.onclick = () => setLang(b.dataset.lang);
+
+(async function init(){
+  applyLang();
+  const sid = store("dl_steam"); if(sid){ $("steam-id").value = sid; }
+  try{ const l = JSON.parse(store("dl_lobby") || "null"); if(l){ state.me = l.me; state.enemies = l.enemies || []; } }catch(e){}
+  // si cerraste la app en medio de la partida, la build y lo marcado siguen ahí
+  state.run = loadRun();
+  if(state.run) renderResult(false);
+  // con una build a medias se abre en Build; si no, en la última pestaña usada (la primera vez, Meta)
+  setView(state.run && nextIndex() >= 0 ? "build" : (store("dl_view") || "meta"));
+  const c = loadClock(); if(c) setClock(c);
+  // "Comprado" tocado en la notificación mientras la app estaba cerrada
+  if(NATIVE && Plug.Partida) Plug.Partida.takePending().then(r => String(r?.steps || "").split(",").filter(Boolean).forEach(x => doneFromNotif(Number(x)))).catch(()=>{});
+  async function boot(){
+    try{
+      await loadAssets();
+      if(state.me != null && !heroById(state.me)) state.me = null;
+      state.enemies = state.enemies.filter(id => heroById(id));
+      update();
+      setStatus(null);
+      loadMeta();
+    }catch(e){
+      $("hero-grid").innerHTML = "";
+      setStatus(() => t("boot.fail", { msg: errMsg(e) }), "err");
+    }
+  }
+  await boot();
+  window.addEventListener("online", () => { if(!state.heroes.length) boot(); });
+  // en el APK los archivos ya van dentro: no hace falta service worker
+  if(!NATIVE && "serviceWorker" in navigator && location.protocol === "https:"){
+    navigator.serviceWorker.register("sw.js").catch(()=>{});
+  }
+})();
+</script>
+</body>
+</html>

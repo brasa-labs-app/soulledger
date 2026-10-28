@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#14161b">
+<title>Privacidad · Soul Ledger</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+  :root{--bg:#14161b;--panel:#1c1f26;--line:#2c303a;--fg:#e8e3d6;--muted:#9a9688;--brass:#c9a45c;color-scheme:dark}
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--fg);font:15px/1.6 "IBM Plex Sans",system-ui,sans-serif;
+    padding:calc(env(safe-area-inset-top,0px) + 18px) max(16px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 40px) max(16px,env(safe-area-inset-left,0px))}
+  main{max-width:720px;margin:0 auto}
+  h1{font:400 30px/1.15 "Marcellus",Georgia,serif;margin:8px 0 4px}
+  h2{font:400 19px/1.3 "Marcellus",Georgia,serif;margin:26px 0 6px;color:var(--brass)}
+  p,li{color:var(--fg)} ul{padding-left:20px}
+  .muted{color:var(--muted);font-size:13px}
+  a{color:var(--brass)}
+  .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .lang{display:flex;gap:4px}
+  button,.back{font:500 12px/1 "IBM Plex Mono",monospace;letter-spacing:.08em;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 11px;cursor:pointer;text-decoration:none}
+  button[aria-pressed="true"]{border-color:var(--brass);color:var(--brass)}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <a class="back" href="index.html" id="back">← Soul Ledger</a>
+    <div class="lang" role="group" aria-label="Idioma / Idioma">
+      <button type="button" data-lang="es" aria-pressed="true">ES</button>
+      <button type="button" data-lang="pt" aria-pressed="false">PT</button>
+    </div>
+  </div>
+
+  <article lang="es" data-lang="es">
+    <h1>Política de privacidad</h1>
+    <p class="muted">Soul Ledger · Brasa Labs (Diego Márquez) · Última actualización: 28 de octubre de 2026</p>
+    <p>Soul Ledger es una herramienta gratuita para el juego Deadlock que sugiere el orden de compra de items y muestra estadísticas del meta. No tiene cuentas de usuario, anuncios, analítica ni rastreadores.</p>
+
+    <h2>Fotos y cámara</h2>
+    <p>La app usa la cámara solo cuando tocas «Tomar foto», para reconocer a los héroes de la barra superior del juego. La foto se analiza dentro del teléfono y <b>nunca se sube a internet</b>. No se guarda en tu galería, y la copia temporal que crea la cámara se borra.</p>
+
+    <h2>Steam ID</h2>
+    <p>Si escribes tu Steam ID para buscar tu partida en vivo o tu último héroe, se guarda solo en tu teléfono y se envía a <a href="https://deadlock-api.com" rel="noopener">deadlock-api.com</a>, un servicio comunitario de terceros que entrega datos públicos de partidas. Esa consulta queda sujeta a las prácticas de ese servicio. Soul Ledger no recibe ni guarda tu Steam ID en ningún servidor propio.</p>
+
+    <h2>Estadísticas del juego</h2>
+    <p>Las estadísticas de héroes, items y partidas se descargan de deadlock-api.com. Son datos agregados y públicos; no identifican a nadie.</p>
+
+    <h2>Datos guardados en el teléfono</h2>
+    <p>La app guarda en el almacenamiento del propio teléfono el lobby, el progreso de la build, el reloj de partida, el idioma, la pestaña elegida y una copia de los datos de la API. Nada de esto sale del teléfono y se borra al desinstalar la app o al borrar sus datos. La app no hace copias de seguridad en la nube.</p>
+
+    <h2>Notificaciones y vibración</h2>
+    <p>Si inicias el reloj de partida, la app pide permiso para mostrar una notificación con la siguiente compra y usa la vibración para avisarte. Puedes negarlo o quitarlo cuando quieras en los ajustes del teléfono.</p>
+
+    <h2>Menores de edad</h2>
+    <p>La app no está dirigida a menores de 13 años y no recopila datos de nadie.</p>
+
+    <h2>Cambios y contacto</h2>
+    <p>Si esta política cambia, se publicará aquí con una nueva fecha. Preguntas: <a href="mailto:soulledger.app@gmail.com">soulledger.app@gmail.com</a>.</p>
+    <p class="muted">Soul Ledger es un proyecto de fans, sin relación con Valve Corporation ni respaldado por ella. Deadlock y su arte son marcas y propiedad de Valve.</p>
+  </article>
+
+  <article lang="pt-BR" data-lang="pt" hidden>
+    <h1>Política de privacidade</h1>
+    <p class="muted">Soul Ledger · Brasa Labs (Diego Márquez) · Última atualização: 28 de outubro de 2026</p>
+    <p>O Soul Ledger é uma ferramenta gratuita para o jogo Deadlock que sugere a ordem de compra de itens e mostra estatísticas do meta. Não tem contas de usuário, anúncios, análise de uso nem rastreadores.</p>
+
+    <h2>Fotos e câmera</h2>
+    <p>O app usa a câmera só quando você toca em «Tirar foto», para reconhecer os heróis da barra superior do jogo. A foto é analisada dentro do celular e <b>nunca é enviada para a internet</b>. Ela não é salva na sua galeria, e a cópia temporária criada pela câmera é apagada.</p>
+
+    <h2>Steam ID</h2>
+    <p>Se você digitar seu Steam ID para buscar sua partida ao vivo ou seu último herói, ele fica salvo só no seu celular e é enviado ao <a href="https://deadlock-api.com" rel="noopener">deadlock-api.com</a>, um serviço comunitário de terceiros que fornece dados públicos de partidas. Essa consulta segue as práticas desse serviço. O Soul Ledger não recebe nem guarda seu Steam ID em nenhum servidor próprio.</p>
+
+    <h2>Estatísticas do jogo</h2>
+    <p>As estatísticas de heróis, itens e partidas são baixadas do deadlock-api.com. São dados agregados e públicos; não identificam ninguém.</p>
+
+    <h2>Dados salvos no celular</h2>
+    <p>O app salva no armazenamento do próprio celular o lobby, o progresso da build, o relógio da partida, o idioma, a aba escolhida e uma cópia dos dados da API. Nada disso sai do celular, e tudo é apagado ao desinstalar o app ou limpar os dados dele. O app não faz backup na nuvem.</p>
+
+    <h2>Notificações e vibração</h2>
+    <p>Se você iniciar o relógio da partida, o app pede permissão para mostrar uma notificação com a próxima compra e usa a vibração para avisar você. Você pode negar ou remover a permissão quando quiser nas configurações do celular.</p>
+
+    <h2>Menores de idade</h2>
+    <p>O app não é direcionado a menores de 13 anos e não coleta dados de ninguém.</p>
+
+    <h2>Mudanças e contato</h2>
+    <p>Se esta política mudar, a nova versão será publicada aqui com uma nova data. Dúvidas: <a href="mailto:soulledger.app@gmail.com">soulledger.app@gmail.com</a>.</p>
+    <p class="muted">O Soul Ledger é um projeto de fãs, sem relação com a Valve Corporation nem endossado por ela. Deadlock e sua arte são marcas e propriedade da Valve.</p>
+  </article>
+</main>
+<script>
+  // mismo idioma que la app (dl_lang); si no hay, el del sistema
+  let lang = "es";
+  try{ lang = localStorage.getItem("dl_lang") || (/^pt/i.test(navigator.language) ? "pt" : "es"); }catch(e){}
+  const set = l => {
+    document.documentElement.lang = l === "pt" ? "pt-BR" : "es";
+    for(const a of document.querySelectorAll("article")) a.hidden = a.dataset.lang !== l;
+    for(const b of document.querySelectorAll(".lang button")) b.setAttribute("aria-pressed", String(b.dataset.lang === l));
+    document.title = l === "pt" ? "Privacidade · Soul Ledger" : "Privacidad · Soul Ledger";
+  };
+  for(const b of document.querySelectorAll(".lang button")) b.onclick = () => set(b.dataset.lang);
+  set(lang === "pt" ? "pt" : "es");
+  // abierta desde la app vuelve atrás; abierta directo (desde la tienda) lleva a la app
+  document.getElementById("back").onclick = e => { if(history.length > 1){ e.preventDefault(); history.back(); } };
+</script>
+</body>
+</html>
