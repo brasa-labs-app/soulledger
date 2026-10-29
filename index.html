@@ -326,7 +326,7 @@ footer a{color:var(--brass)}
 
   <p class="support kofi"><svg aria-hidden="true"><use href="#i-cup"/></svg><span data-i18n-html="support">Soul Ledger es gratis y sin anuncios. Si te ayuda a ganar, <a href="https://ko-fi.com/soulledgerapp" target="_blank" rel="noopener">invítame un café en Ko-fi</a>.</span></p>
   <footer data-i18n-html="footer">Datos: <a href="https://deadlock-api.com" target="_blank" rel="noopener">deadlock-api.com</a> (comunitaria, no oficial de Valve). Los tiempos son el minuto promedio en que se compra cada item en esas partidas. WR = win rate de quienes compraron el item; Δ = diferencia contra el mismo item en todas las partidas del héroe.</footer>
-  <p class="legal"><span data-i18n="legal">Soul Ledger es un proyecto de fans, sin relación con Valve Corporation ni respaldado por ella. Deadlock y su arte son marcas y propiedad de Valve.</span> <a href="privacy.html" data-i18n="privacy">Política de privacidad</a></p>
+  <p class="legal"><span data-i18n="legal">Soul Ledger es un proyecto de fans, sin relación con Valve Corporation ni respaldado por ella. Deadlock y su arte son marcas y propiedad de Valve.</span> <a href="privacy.html" data-i18n="privacy">Política de privacidad</a> · <a id="feedback-link" class="feedback" href="#" target="_blank" rel="noopener" data-i18n="feedback">Enviar sugerencia</a></p>
 </div>
 
 <div class="tracker" id="tracker" hidden>
@@ -336,6 +336,7 @@ footer a{color:var(--brass)}
     <div class="txt" id="tr-txt" aria-live="polite"></div>
     <button id="tr-undo" data-i18n="tr.undo">Deshacer</button>
     <button id="tr-done" class="primary">Comprado</button>
+    <a id="tr-feedback" class="kofi-cta feedback" href="#" target="_blank" rel="noopener" hidden data-i18n="tr.feedbackBtn">Sugerir</a>
     <a id="tr-kofi" class="kofi-cta kofi" href="https://ko-fi.com/soulledgerapp" target="_blank" rel="noopener" hidden><svg aria-hidden="true"><use href="#i-cup"/></svg>Ko-fi</a>
   </div>
 </div>
@@ -374,6 +375,10 @@ const LOW_CONF = 0.06;     // bajo este margen el reconocimiento pide revisión
 // APK de Android (Capacitor): plugins nativos para cámara, pantalla encendida y botón atrás
 // versión publicada en Google Play: sin enlaces de donación externos (política de pagos de Play)
 const PLAY = document.documentElement.dataset.store === "play";
+const APP_VERSION = "1.0.0";   // igual que versionName en android/app/build.gradle
+// Formulario de sugerencias (Google Forms de soulledger.app@gmail.com). El último campo se llena solo con
+// versión, idioma y canal (web, apk o play): nada personal.
+const FEEDBACK_FORM = "https://docs.google.com/forms/d/e/1FAIpQLSeN2N15OrhiYmea9PN0F4pm_4czaXsZyqFCdc2TlCCayFrlMA/viewform?usp=pp_url&entry.1317379149=";
 const NATIVE = !!window.Capacitor?.isNativePlatform?.();
 const Plug = NATIVE ? (window.Capacitor.Plugins || {}) : {};
 
@@ -399,7 +404,7 @@ const I18N = {
     "reset":"Empezar de cero", "why.summary":"Por qué estos items (win rate y diferencia)",
     "footer":'Datos: <a href="https://deadlock-api.com" target="_blank" rel="noopener">deadlock-api.com</a> (comunitaria, no oficial de Valve). Los tiempos son el minuto promedio en que se compra cada item en esas partidas. WR = win rate de quienes compraron el item; Δ = diferencia contra el mismo item en todas las partidas del héroe.',
     "tr.undo":"Deshacer", "tr.bought":"Comprado", "tr.sold":"Vendido", "tr.upgraded":"Mejorado",
-    "eyebrow":"Herramienta de fans para Deadlock", "legal":"Soul Ledger es un proyecto de fans, sin relación con Valve Corporation ni respaldado por ella. Deadlock y su arte son marcas y propiedad de Valve.", "privacy":"Política de privacidad",
+    "eyebrow":"Herramienta de fans para Deadlock", "legal":"Soul Ledger es un proyecto de fans, sin relación con Valve Corporation ni respaldado por ella. Deadlock y su arte son marcas y propiedad de Valve.", "privacy":"Política de privacidad", "feedback":"Enviar sugerencia", "tr.feedback":"¿Algo que mejorar? Cuéntanos", "tr.feedbackBtn":"Sugerir",
     "tr.complete":"Build completa", "tr.marked":"{n} pasos marcados", "tr.kofi":"¿Te sirvió? Invítame un café", "kofi.aria":"Apoyar Soul Ledger en Ko-fi", "tr.step":"Paso {i} de {n} · {price} almas · ~{time}",
     "view.aria":"Sección", "view.meta":"Meta", "view.build":"Build",
     "meta.title":"Meta de héroes", "meta.loading":"Consultando el meta…", "meta.sortAria":"Ordenar por", "meta.filter":"Buscar héroe…",
@@ -457,7 +462,7 @@ const I18N = {
     "reset":"Começar do zero", "why.summary":"Por que estes itens (win rate e diferença)",
     "footer":'Dados: <a href="https://deadlock-api.com" target="_blank" rel="noopener">deadlock-api.com</a> (comunitária, não oficial da Valve). Os tempos são o minuto médio em que cada item é comprado nessas partidas. WR = win rate de quem comprou o item; Δ = diferença em relação ao mesmo item em todas as partidas do herói.',
     "tr.undo":"Desfazer", "tr.bought":"Comprado", "tr.sold":"Vendido", "tr.upgraded":"Melhorado",
-    "eyebrow":"Ferramenta de fãs para Deadlock", "legal":"O Soul Ledger é um projeto de fãs, sem relação com a Valve Corporation nem endossado por ela. Deadlock e sua arte são marcas e propriedade da Valve.", "privacy":"Política de privacidade",
+    "eyebrow":"Ferramenta de fãs para Deadlock", "legal":"O Soul Ledger é um projeto de fãs, sem relação com a Valve Corporation nem endossado por ela. Deadlock e sua arte são marcas e propriedade da Valve.", "privacy":"Política de privacidade", "feedback":"Enviar sugestão", "tr.feedback":"Algo para melhorar? Conte para nós", "tr.feedbackBtn":"Sugerir",
     "tr.complete":"Build completa", "tr.marked":"{n} passos marcados", "tr.kofi":"Curtiu? Me pague um café", "kofi.aria":"Apoiar o Soul Ledger no Ko-fi", "tr.step":"Passo {i} de {n} · {price} almas · ~{time}",
     "view.aria":"Seção", "view.meta":"Meta", "view.build":"Build",
     "meta.title":"Meta de heróis", "meta.loading":"Consultando o meta…", "meta.sortAria":"Ordenar por", "meta.filter":"Buscar herói…",
@@ -1045,15 +1050,16 @@ function renderTracker(){
   if(next < 0){
     $("tr-icon").innerHTML = "";
     // al terminar la build, en vez de "Comprado" aparece la invitación a Ko-fi (no en la versión de Play)
-    $("tr-txt").innerHTML = `<b>${t("tr.complete")}</b><small>${esc(PLAY ? t("tr.marked", { n: steps.length }) : t("tr.kofi"))}</small>`;
-    $("tr-done").hidden = !PLAY; $("tr-done").disabled = PLAY; $("tr-kofi").hidden = PLAY;
+    // en la versión de Play (sin Ko-fi) ese espacio invita a mandar una sugerencia
+    $("tr-txt").innerHTML = `<b>${t("tr.complete")}</b><small>${esc(PLAY ? t("tr.feedback") : t("tr.kofi"))}</small>`;
+    $("tr-done").hidden = true; $("tr-kofi").hidden = PLAY; $("tr-feedback").hidden = !PLAY;
     releaseWake(); tickClock(); syncNotif();
     return;
   }
   const s = steps[next], st = stepText(s);
   $("tr-icon").innerHTML = st.icons;
   $("tr-txt").innerHTML = `${st.main}<small>${t("tr.step", { i: next+1, n: steps.length, price: (s.price >= 0 ? "−" : "+") + fmtSouls(Math.abs(s.price)), time: fmtTime(s.t) })}</small>`;
-  $("tr-done").hidden = false; $("tr-done").disabled = false; $("tr-kofi").hidden = true;
+  $("tr-done").hidden = false; $("tr-done").disabled = false; $("tr-kofi").hidden = true; $("tr-feedback").hidden = true;
   $("tr-done").textContent = t(s.kind === "sell" ? "tr.sold" : s.kind === "upgrade" ? "tr.upgraded" : "tr.bought");
   keepAwake(); tickClock(); syncNotif();
 }
@@ -1398,6 +1404,8 @@ function applyLang(){
   for(const el of document.querySelectorAll("[data-i18n-ph]")) el.placeholder = t(el.dataset.i18nPh);
   for(const el of document.querySelectorAll("[data-i18n-aria]")) el.setAttribute("aria-label", t(el.dataset.i18nAria));
   for(const el of document.querySelectorAll("[data-i18n-title]")) el.title = t(el.dataset.i18nTitle);
+  const info = `Soul Ledger ${APP_VERSION} · ${LANG} · ${PLAY ? "play" : NATIVE ? "apk" : "web"}`;
+  for(const a of document.querySelectorAll("a.feedback")) a.href = FEEDBACK_FORM + encodeURIComponent(info);
   for(const b of document.querySelectorAll(".lang button")) b.setAttribute("aria-pressed", String(b.dataset.lang === LANG));
 }
 function setLang(l){
