@@ -151,6 +151,8 @@ dialog h3{font:400 21px var(--display);margin:0 0 6px}
 .support{font-size:13px;color:var(--muted);margin-bottom:8px;display:flex;gap:10px;align-items:center;
   border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--panel)}
 .support svg{width:26px;height:26px;flex:none;color:var(--brass)}
+/* sugerencias y Ko-fi: cajones separados pero juntos (en Play solo queda el de sugerencias) */
+html:not([data-store="play"]) .support.suggest{margin-bottom:-26px}
 .top-r{display:flex;gap:4px;align-items:center}
 .kofi-btn{display:grid;place-items:center;width:36px;height:29px;border:1px solid var(--line);border-radius:8px;color:var(--brass);background:var(--panel)}
 .kofi-btn svg{width:18px;height:18px}
@@ -203,12 +205,18 @@ footer a{color:var(--brass)}
     <path d="M4 9h12v4.5A5.5 5.5 0 0 1 10.5 19h-1A5.5 5.5 0 0 1 4 13.5Z"/><path d="M16 11h1.5a2.5 2.5 0 0 1 0 5H16"/>
     <path d="M8 3.5c-.7.9-.7 1.9 0 2.8M12 3.5c-.7.9-.7 1.9 0 2.8"/><path d="M3 21.5h14"/>
   </symbol>
+  <!-- ampolleta: ideas y sugerencias -->
+  <symbol id="i-idea" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 3a6 6 0 0 0-3.7 10.7c.8.7 1.2 1.4 1.2 2.3v.5h5V16c0-.9.4-1.6 1.2-2.3A6 6 0 0 0 12 3Z"/>
+    <path d="M9.8 19.2h4.4M10.6 21.8h2.8"/><path d="M10.4 12.2 12 10.6l1.6 1.6M12 10.6v5.6"/>
+  </symbol>
 </svg>
 <div class="wrap">
   <header>
     <div class="top">
       <div class="eyebrow" data-i18n="eyebrow">Herramienta de fans para Deadlock</div>
       <div class="top-r">
+      <a class="kofi-btn feedback" id="feedback-btn" href="#" target="_blank" rel="noopener" data-i18n-aria="feedback" data-i18n-title="feedback" aria-label="Enviar sugerencia" title="Enviar sugerencia"><svg aria-hidden="true"><use href="#i-idea"/></svg></a>
       <a class="kofi-btn kofi" href="https://ko-fi.com/soulledgerapp" target="_blank" rel="noopener" data-i18n-aria="kofi.aria" data-i18n-title="kofi.aria" aria-label="Apoyar Soul Ledger en Ko-fi" title="Apoyar Soul Ledger en Ko-fi"><svg aria-hidden="true"><use href="#i-cup"/></svg></a>
       <div class="lang" role="group" data-i18n-aria="lang.aria" aria-label="Idioma">
         <button type="button" data-lang="es" aria-pressed="true">ES</button>
@@ -324,6 +332,7 @@ footer a{color:var(--brass)}
   </section>
   </div>
 
+  <p class="support suggest"><svg aria-hidden="true"><use href="#i-idea"/></svg><span data-i18n-html="suggestBox">¿Tienes una idea o encontraste un error? <a class="feedback" href="#" target="_blank" rel="noopener">Envíanos una sugerencia</a>.</span></p>
   <p class="support kofi"><svg aria-hidden="true"><use href="#i-cup"/></svg><span data-i18n-html="support">Soul Ledger es gratis y sin anuncios. Si te ayuda a ganar, <a href="https://ko-fi.com/soulledgerapp" target="_blank" rel="noopener">invítame un café en Ko-fi</a>.</span></p>
   <footer data-i18n-html="footer">Datos: <a href="https://deadlock-api.com" target="_blank" rel="noopener">deadlock-api.com</a> (comunitaria, no oficial de Valve). Los tiempos son el minuto promedio en que se compra cada item en esas partidas. WR = win rate de quienes compraron el item; Δ = diferencia contra el mismo item en todas las partidas del héroe.</footer>
   <p class="legal"><span data-i18n="legal">Soul Ledger es un proyecto de fans, sin relación con Valve Corporation ni respaldado por ella. Deadlock y su arte son marcas y propiedad de Valve.</span> <a href="privacy.html" data-i18n="privacy">Política de privacidad</a> · <a id="feedback-link" class="feedback" href="#" target="_blank" rel="noopener" data-i18n="feedback">Enviar sugerencia</a></p>
@@ -404,7 +413,7 @@ const I18N = {
     "reset":"Empezar de cero", "why.summary":"Por qué estos items (win rate y diferencia)",
     "footer":'Datos: <a href="https://deadlock-api.com" target="_blank" rel="noopener">deadlock-api.com</a> (comunitaria, no oficial de Valve). Los tiempos son el minuto promedio en que se compra cada item en esas partidas. WR = win rate de quienes compraron el item; Δ = diferencia contra el mismo item en todas las partidas del héroe.',
     "tr.undo":"Deshacer", "tr.bought":"Comprado", "tr.sold":"Vendido", "tr.upgraded":"Mejorado",
-    "eyebrow":"Herramienta de fans para Deadlock", "legal":"Soul Ledger es un proyecto de fans, sin relación con Valve Corporation ni respaldado por ella. Deadlock y su arte son marcas y propiedad de Valve.", "privacy":"Política de privacidad", "feedback":"Enviar sugerencia", "tr.feedback":"¿Algo que mejorar? Cuéntanos", "tr.feedbackBtn":"Sugerir",
+    "eyebrow":"Herramienta de fans para Deadlock", "legal":"Soul Ledger es un proyecto de fans, sin relación con Valve Corporation ni respaldado por ella. Deadlock y su arte son marcas y propiedad de Valve.", "privacy":"Política de privacidad", "feedback":"Enviar sugerencia", "suggestBox":'¿Tienes una idea o encontraste un error? <a class="feedback" href="#" target="_blank" rel="noopener">Envíanos una sugerencia</a>.', "tr.feedback":"¿Algo que mejorar? Cuéntanos", "tr.feedbackBtn":"Sugerir",
     "tr.complete":"Build completa", "tr.marked":"{n} pasos marcados", "tr.kofi":"¿Te sirvió? Invítame un café", "kofi.aria":"Apoyar Soul Ledger en Ko-fi", "tr.step":"Paso {i} de {n} · {price} almas · ~{time}",
     "view.aria":"Sección", "view.meta":"Meta", "view.build":"Build",
     "meta.title":"Meta de héroes", "meta.loading":"Consultando el meta…", "meta.sortAria":"Ordenar por", "meta.filter":"Buscar héroe…",
@@ -462,7 +471,7 @@ const I18N = {
     "reset":"Começar do zero", "why.summary":"Por que estes itens (win rate e diferença)",
     "footer":'Dados: <a href="https://deadlock-api.com" target="_blank" rel="noopener">deadlock-api.com</a> (comunitária, não oficial da Valve). Os tempos são o minuto médio em que cada item é comprado nessas partidas. WR = win rate de quem comprou o item; Δ = diferença em relação ao mesmo item em todas as partidas do herói.',
     "tr.undo":"Desfazer", "tr.bought":"Comprado", "tr.sold":"Vendido", "tr.upgraded":"Melhorado",
-    "eyebrow":"Ferramenta de fãs para Deadlock", "legal":"O Soul Ledger é um projeto de fãs, sem relação com a Valve Corporation nem endossado por ela. Deadlock e sua arte são marcas e propriedade da Valve.", "privacy":"Política de privacidade", "feedback":"Enviar sugestão", "tr.feedback":"Algo para melhorar? Conte para nós", "tr.feedbackBtn":"Sugerir",
+    "eyebrow":"Ferramenta de fãs para Deadlock", "legal":"O Soul Ledger é um projeto de fãs, sem relação com a Valve Corporation nem endossado por ela. Deadlock e sua arte são marcas e propriedade da Valve.", "privacy":"Política de privacidade", "feedback":"Enviar sugestão", "suggestBox":'Tem uma ideia ou encontrou um erro? <a class="feedback" href="#" target="_blank" rel="noopener">Envie uma sugestão</a>.', "tr.feedback":"Algo para melhorar? Conte para nós", "tr.feedbackBtn":"Sugerir",
     "tr.complete":"Build completa", "tr.marked":"{n} passos marcados", "tr.kofi":"Curtiu? Me pague um café", "kofi.aria":"Apoiar o Soul Ledger no Ko-fi", "tr.step":"Passo {i} de {n} · {price} almas · ~{time}",
     "view.aria":"Seção", "view.meta":"Meta", "view.build":"Build",
     "meta.title":"Meta de heróis", "meta.loading":"Consultando o meta…", "meta.sortAria":"Ordenar por", "meta.filter":"Buscar herói…",
